@@ -10,6 +10,19 @@ async function syncDefaultUsers(dbPath) {
             driver: sqlite3.Database
         });
 
+        // 1. Ensure at least one factory exists
+        let factory = await db.get('SELECT * FROM factories LIMIT 1');
+        if (!factory) {
+            const factoryId = 'F001';
+            await db.run(
+                `INSERT INTO factories (factory_id, name, address) 
+                 VALUES (?, ?, ?)`,
+                [factoryId, 'My Factory', 'System Default Address']
+            );
+            factory = { factory_id: factoryId };
+            logger.log('Created default factory profile: F001');
+        }
+
         const users = [
             {
                 username: 'superadmin',
@@ -28,20 +41,23 @@ async function syncDefaultUsers(dbPath) {
         for (const user of users) {
             const existing = await db.get('SELECT * FROM users WHERE username = ?', [user.username]);
             if (existing) {
-                // Ensure passwords match requested
-                if (existing.password !== user.password) {
-                    await db.run('UPDATE users SET password = ? WHERE username = ?', [user.password, user.username]);
-                    logger.log(`Synced password for ${user.username}`);
+                // Ensure password and factory_id match
+                if (existing.password !== user.password || !existing.factory_id) {
+                    await db.run(
+                        'UPDATE users SET password = ?, factory_id = ? WHERE username = ?', 
+                        [user.password, factory.factory_id, user.username]
+                    );
+                    logger.log(`Synced account for ${user.username} with factory ${factory.factory_id}`);
                 }
             } else {
                 // Create if missing
                 const userId = user.role === 'superadmin' ? 'S001' : 'A001';
                 await db.run(
-                    `INSERT INTO users (user_id, username, password, full_name, role, status)
-                     VALUES (?, ?, ?, ?, ?, 'active')`,
-                    [userId, user.username, user.password, user.fullName, user.role]
+                    `INSERT INTO users (user_id, username, password, full_name, role, factory_id, status)
+                     VALUES (?, ?, ?, ?, ?, ?, 'active')`,
+                    [userId, user.username, user.password, user.fullName, user.role, factory.factory_id]
                 );
-                logger.log(`Created default user: ${user.username}`);
+                logger.log(`Created default user: ${user.username} with factory ${factory.factory_id}`);
             }
         }
     } catch (err) {
