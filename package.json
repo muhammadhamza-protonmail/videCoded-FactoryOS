@@ -1,6 +1,6 @@
 {
   "name": "factoryos-desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "FactoryOS desktop app",
   "author": "FactoryOS",
   "private": true,
@@ -11,7 +11,7 @@
     "desktop:deps": "npm --prefix backend install && npm --prefix frontend install",
     "desktop:build:web": "npm --prefix frontend run build",
     "desktop:prepare:prod": "npm --prefix backend prune --omit=dev",
-    "desktop:rebuild:native": "electron-rebuild -f -w sqlite3 --module-dir backend",
+    "desktop:rebuild:native": "electron-rebuild -f -w sqlite3 --module-dir backend && electron-rebuild -f -w sqlite3",
     "desktop:backup": "electron electron/db-tools.js backup",
     "desktop:restore": "electron electron/db-tools.js restore",
     "desktop:pack": "npm run desktop:build:web && npm run desktop:prepare:prod && npm run desktop:rebuild:native && electron-builder --win"
@@ -113,6 +113,8 @@
     }
   },
   "dependencies": {
-    "googleapis": "^171.4.0"
+    "googleapis": "^171.4.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1"
   }
 }
