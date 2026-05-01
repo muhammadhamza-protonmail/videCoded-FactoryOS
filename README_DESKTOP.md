@@ -83,3 +83,15 @@ npm run desktop:pack
 - Database is copied on first run to Electron `userData/data/database.sqlite`
 - Uploads are stored in Electron `userData/uploads`
 - Backups are stored in Electron `userData/backups`
+
+## 🌐 Cloud Backup Setup (Google Drive)
+
+Version 1.0.3+ includes automated cloud sync. If not configured, the app will create placeholder files in your AppData folder: `%APPDATA%\factoryos-desktop\`
+
+### Configuration Steps:
+1.  **Get a Service Account**: Create one in the Google Cloud Console and download the JSON key.
+2.  **Replace `service-account.json`**: Overwrite the placeholder file in your AppData folder with your real JSON key.
+3.  **Update `backup-config.json`**: Open this file and replace `PASTE_YOUR_FOLDER_ID_HERE` with your Google Drive Folder ID.
+4.  **Share the Folder**: Share your Google Drive folder with the `client_email` found in your JSON key file.
+
+Once configured, the app will automatically sync your local backups to the cloud whenever you are online.

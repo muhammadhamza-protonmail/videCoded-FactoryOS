@@ -3,7 +3,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { createBackupIfDue, syncWithCloud } = require('./backup');
+const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles } = require('./backup');
 
 const BACKEND_PORT = Number(process.env.BACKEND_PORT || 5000);
 const FRONTEND_PORT = Number(process.env.FRONTEND_PORT || 3000);
@@ -357,6 +357,22 @@ async function createWindow() {
     
     // Attempt cloud sync on startup and then periodically
     const userDataDir = app.getPath('userData');
+    ensurePlaceholderFiles(userDataDir);
+
+    if (!isCloudSyncConfigured(userDataDir)) {
+        setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                dialog.showMessageBox(mainWindow, {
+                    type: 'info',
+                    title: 'Google Drive Sync Not Configured',
+                    message: 'Automatic cloud backup is currently disabled.',
+                    detail: 'To enable it, please replace the placeholder service-account.json and backup-config.json files in your AppData folder with your real Google Cloud credentials.',
+                    buttons: ['Got it']
+                });
+            }
+        }, 5000); // Show after 5 seconds to not block startup
+    }
+
     syncWithCloud(backupDir, userDataDir);
     setInterval(() => {
         syncWithCloud(backupDir, userDataDir);

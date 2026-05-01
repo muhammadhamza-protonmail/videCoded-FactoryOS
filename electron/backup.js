@@ -105,35 +105,77 @@ function createBackupIfDue(dbPath, backupDir) {
     return createBackupNow(dbPath, backupDir);
 }
 
+function isCloudSyncConfigured(userDataDir) {
+    const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
+    const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
+
+    if (!fs.existsSync(serviceAccountPath)) return false;
+    if (!fs.existsSync(configPath)) return false;
+
+    try {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (!config.googleDriveFolderId || config.googleDriveFolderId === "PASTE_YOUR_FOLDER_ID_HERE") {
+            return false;
+        }
+
+        const sa = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+        if (!sa.client_email || sa.client_email.includes("YOUR_SERVICE_ACCOUNT_EMAIL")) {
+            return false;
+        }
+    } catch {
+        return false;
+    }
+
+    return true;
+}
+
+function ensurePlaceholderFiles(userDataDir) {
+    const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
+    const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
+
+    if (!fs.existsSync(serviceAccountPath)) {
+        const saPlaceholder = {
+            "type": "service_account",
+            "project_id": "YOUR_PROJECT_ID",
+            "private_key_id": "YOUR_PRIVATE_KEY_ID",
+            "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n",
+            "client_email": "YOUR_SERVICE_ACCOUNT_EMAIL@YOUR_PROJECT_ID.iam.gserviceaccount.com",
+            "client_id": "YOUR_CLIENT_ID",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/YOUR_SERVICE_ACCOUNT_EMAIL"
+        };
+        fs.writeFileSync(serviceAccountPath, JSON.stringify(saPlaceholder, null, 2), 'utf8');
+    }
+
+    if (!fs.existsSync(configPath)) {
+        const configPlaceholder = {
+            "googleDriveFolderId": "PASTE_YOUR_FOLDER_ID_HERE"
+        };
+        fs.writeFileSync(configPath, JSON.stringify(configPlaceholder, null, 2), 'utf8');
+    }
+}
+
 async function syncWithCloud(backupDir, userDataDir) {
     ensureDirectory(backupDir);
     const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
 
-    if (!fs.existsSync(serviceAccountPath)) {
-        console.log('Cloud sync skipped: service-account.json missing in userData');
+    if (!isCloudSyncConfigured(userDataDir)) {
+        console.log('Cloud sync skipped: Configuration is missing or invalid.');
         return;
     }
 
     let folderId = '';
-    if (fs.existsSync(configPath)) {
-        try {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            folderId = config.googleDriveFolderId;
-        } catch (err) {
-            console.error('Error reading backup-config.json:', err);
-        }
-    }
-
-    if (!folderId || folderId === "PASTE_YOUR_FOLDER_ID_HERE") {
-        console.log('Cloud sync skipped: googleDriveFolderId not configured');
-        if (!fs.existsSync(configPath)) {
-            fs.writeFileSync(configPath, JSON.stringify({ googleDriveFolderId: "PASTE_YOUR_FOLDER_ID_HERE" }, null, 2));
-        }
+    try {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        folderId = config.googleDriveFolderId;
+    } catch (err) {
+        console.error('Error reading backup-config.json:', err);
         return;
     }
 
-    // NEW: Scan for existing backups that aren't in the sync status yet
     const syncStatus = readCloudSyncStatus(backupDir);
     const filesInDir = fs.readdirSync(backupDir).filter(name => name.endsWith('.sqlite'));
     let hasNewPending = false;
@@ -187,7 +229,6 @@ async function syncWithCloud(backupDir, userDataDir) {
                 console.log(`Successfully synced ${fileName}`);
             } catch (err) {
                 console.error(`Failed to upload ${fileName}:`, err.message);
-                // Continue to next file if one fails
             }
         }
     } catch (error) {
@@ -198,5 +239,7 @@ async function syncWithCloud(backupDir, userDataDir) {
 module.exports = {
     createBackupNow,
     createBackupIfDue,
-    syncWithCloud
+    syncWithCloud,
+    isCloudSyncConfigured,
+    ensurePlaceholderFiles
 };
