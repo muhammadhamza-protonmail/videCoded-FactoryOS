@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -458,4 +458,87 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
     isQuitting = true;
     stopChildProcesses();
+});
+
+// --- Google Drive OAuth IPC Handlers ---
+ipcMain.handle('google-auth-status', async () => {
+    const userDataDir = app.getPath('userData');
+    const authPath = path.join(userDataDir, 'google-auth.json');
+    const configPath = path.join(userDataDir, 'backup-config.json');
+    
+    let isConnected = fs.existsSync(authPath);
+    let folderId = '';
+    
+    if (fs.existsSync(configPath)) {
+        try {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            folderId = config.googleDriveFolderId || '';
+        } catch {}
+    }
+    
+    return { isConnected, folderId };
+});
+
+ipcMain.on('google-auth-start', async (event, { clientId, clientSecret }) => {
+    if (!clientId || !clientSecret) {
+        dialog.showErrorBox('Configuration Missing', 'Please provide a Client ID and Client Secret.');
+        return;
+    }
+
+    const { google } = require('googleapis');
+    const oauth2Client = new google.auth.OAuth2(
+        clientId,
+        clientSecret,
+        'http://127.0.0.1:42813' // Local callback
+    );
+
+    const authUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: ['https://www.googleapis.com/auth/drive.file'],
+        prompt: 'consent'
+    });
+
+    // Start local server to catch the code
+    const server = http.createServer(async (req, res) => {
+        if (req.url.startsWith('/?code=')) {
+            const code = new URL(req.url, 'http://127.0.0.1:42813').searchParams.get('code');
+            res.end('Authentication successful! You can close this window.');
+            server.close();
+
+            try {
+                const { tokens } = await oauth2Client.getToken(code);
+                const userDataDir = app.getPath('userData');
+                
+                // Save tokens
+                fs.writeFileSync(path.join(userDataDir, 'google-auth.json'), JSON.stringify({
+                    clientId,
+                    clientSecret,
+                    tokens
+                }, null, 2));
+
+                logger.log('Google Drive connected successfully!');
+                event.sender.send('google-auth-success');
+            } catch (err) {
+                logger.error('Failed to get Google tokens', err);
+                dialog.showErrorBox('Auth Failed', err.message);
+            }
+        }
+    }).listen(42813);
+
+    shell.openExternal(authUrl);
+});
+
+ipcMain.on('google-set-folder', async (event, folderId) => {
+    const userDataDir = app.getPath('userData');
+    const configPath = path.join(userDataDir, 'backup-config.json');
+    
+    let config = {};
+    if (fs.existsSync(configPath)) {
+        try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+    }
+    
+    config.googleDriveFolderId = folderId;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    logger.log(`Updated Google Drive folder ID: ${folderId}`);
+    event.sender.send('google-config-updated');
 });

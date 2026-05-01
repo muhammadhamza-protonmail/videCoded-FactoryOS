@@ -9,6 +9,7 @@ const LAST_BACKUP_FILE = 'last-backup.json';
 const CLOUD_SYNC_FILE = 'cloud-sync.json';
 const SERVICE_ACCOUNT_FILE = 'service-account.json';
 const BACKUP_CONFIG_FILE = 'backup-config.json';
+const GOOGLE_AUTH_FILE = 'google-auth.json';
 
 function ensureDirectory(dirPath) {
     if (!fs.existsSync(dirPath)) {
@@ -108,50 +109,31 @@ function createBackupIfDue(dbPath, backupDir) {
 }
 
 function isCloudSyncConfigured(userDataDir) {
+    const authPath = path.join(userDataDir, GOOGLE_AUTH_FILE);
     const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
 
-    if (!fs.existsSync(serviceAccountPath)) return false;
-    if (!fs.existsSync(configPath)) return false;
+    // Prefer OAuth2
+    if (fs.existsSync(authPath)) return true;
 
-    try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        if (!config.googleDriveFolderId || config.googleDriveFolderId === "PASTE_YOUR_FOLDER_ID_HERE") {
-            return false;
-        }
-
-        const sa = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-        if (!sa.client_email || sa.client_email.includes("YOUR_SERVICE_ACCOUNT_EMAIL")) {
-            return false;
-        }
-    } catch {
-        return false;
+    // Fallback to Service Account
+    if (fs.existsSync(serviceAccountPath)) {
+        try {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            if (config.googleDriveFolderId && config.googleDriveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
+                const sa = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+                if (sa.client_email && !sa.client_email.includes("YOUR_SERVICE_ACCOUNT_EMAIL")) {
+                    return true;
+                }
+            }
+        } catch {}
     }
 
-    return true;
+    return false;
 }
 
 function ensurePlaceholderFiles(userDataDir) {
-    const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
-
-    if (!fs.existsSync(serviceAccountPath)) {
-        const saPlaceholder = {
-            "type": "service_account",
-            "project_id": "YOUR_PROJECT_ID",
-            "private_key_id": "YOUR_PRIVATE_KEY_ID",
-            "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n",
-            "client_email": "YOUR_SERVICE_ACCOUNT_EMAIL@YOUR_PROJECT_ID.iam.gserviceaccount.com",
-            "client_id": "YOUR_CLIENT_ID",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/YOUR_SERVICE_ACCOUNT_EMAIL"
-        };
-        fs.writeFileSync(serviceAccountPath, JSON.stringify(saPlaceholder, null, 2), 'utf8');
-        logger.log('Created placeholder service-account.json');
-    }
-
     if (!fs.existsSync(configPath)) {
         const configPlaceholder = {
             "googleDriveFolderId": "PASTE_YOUR_FOLDER_ID_HERE"
@@ -163,20 +145,55 @@ function ensurePlaceholderFiles(userDataDir) {
 
 async function syncWithCloud(backupDir, userDataDir) {
     ensureDirectory(backupDir);
+    const authPath = path.join(userDataDir, GOOGLE_AUTH_FILE);
     const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
 
-    if (!isCloudSyncConfigured(userDataDir)) {
-        logger.log('Cloud sync skipped: Configuration is missing or invalid.');
-        return;
+    let auth = null;
+    let folderId = '';
+
+    // Try OAuth2 First
+    if (fs.existsSync(authPath)) {
+        try {
+            const authData = JSON.parse(fs.readFileSync(authPath, 'utf8'));
+            const oauth2Client = new google.auth.OAuth2(
+                authData.clientId,
+                authData.clientSecret,
+                'http://127.0.0.1:42813'
+            );
+            oauth2Client.setCredentials(authData.tokens);
+            auth = oauth2Client;
+            
+            // Re-read config for folderId
+            if (fs.existsSync(configPath)) {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                folderId = config.googleDriveFolderId;
+            }
+            logger.log('Using Google OAuth2 for cloud sync');
+        } catch (err) {
+            logger.error('Failed to load OAuth2 credentials', err);
+        }
     }
 
-    let folderId = '';
-    try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        folderId = config.googleDriveFolderId;
-    } catch (err) {
-        logger.error('Error reading backup-config.json', err);
+    // Fallback to Service Account
+    if (!auth && fs.existsSync(serviceAccountPath)) {
+        try {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            folderId = config.googleDriveFolderId;
+            if (folderId && folderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
+                auth = new google.auth.GoogleAuth({
+                    keyFile: serviceAccountPath,
+                    scopes: ['https://www.googleapis.com/auth/drive.file'],
+                });
+                logger.log('Using Service Account for cloud sync');
+            }
+        } catch (err) {
+            logger.error('Failed to load Service Account', err);
+        }
+    }
+
+    if (!auth || !folderId) {
+        logger.log('Cloud sync skipped: No valid authentication or folder ID found.');
         return;
     }
 
@@ -191,28 +208,15 @@ async function syncWithCloud(backupDir, userDataDir) {
         }
     });
     
-    if (hasNewPending) {
-        writeCloudSyncStatus(backupDir, syncStatus);
-        logger.log(`Detected ${filesInDir.length} files, updated sync status.`);
-    }
+    if (hasNewPending) writeCloudSyncStatus(backupDir, syncStatus);
 
     const pendingFiles = Object.keys(syncStatus)
         .filter(name => syncStatus[name].status === 'pending')
         .sort((a, b) => syncStatus[b].createdAt - syncStatus[a].createdAt);
 
-    if (pendingFiles.length === 0) {
-        logger.log('No pending files for cloud sync.');
-        return;
-    }
-
-    logger.log(`Starting cloud sync for ${pendingFiles.length} files...`);
+    if (pendingFiles.length === 0) return;
 
     try {
-        const auth = new google.auth.GoogleAuth({
-            keyFile: serviceAccountPath,
-            scopes: ['https://www.googleapis.com/auth/drive.file'],
-        });
-
         const drive = google.drive({ version: 'v3', auth });
 
         for (const fileName of pendingFiles) {
