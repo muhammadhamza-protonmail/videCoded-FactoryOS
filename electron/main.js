@@ -261,6 +261,8 @@ function startFrontend(frontendDir) {
                 NODE_OPTIONS: '--max-old-space-size=4096'
             });
         } else {
+            const standaloneServerPath = path.join(frontendDir, 'server.js');
+            const standaloneDir = frontendDir;
             frontendProcess = spawnWithNodeRuntime(standaloneServerPath, [], standaloneDir, {
                 ...env,
                 PORT: String(FRONTEND_PORT),
