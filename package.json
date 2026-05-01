@@ -1,0 +1,118 @@
+{
+  "name": "factoryos-desktop",
+  "version": "1.0.1",
+  "description": "FactoryOS desktop app",
+  "author": "FactoryOS",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "desktop:dev": "cross-env ELECTRON_START_MODE=dev electron .",
+    "desktop:start": "electron .",
+    "desktop:deps": "npm --prefix backend install && npm --prefix frontend install",
+    "desktop:build:web": "npm --prefix frontend run build",
+    "desktop:prepare:prod": "npm --prefix backend prune --omit=dev",
+    "desktop:rebuild:native": "electron-rebuild -f -w sqlite3 --module-dir backend",
+    "desktop:backup": "electron electron/db-tools.js backup",
+    "desktop:restore": "electron electron/db-tools.js restore",
+    "desktop:pack": "npm run desktop:build:web && npm run desktop:prepare:prod && npm run desktop:rebuild:native && electron-builder --win"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.factoryos.desktop",
+    "productName": "FactoryOS",
+    "artifactName": "FactoryOS-${version}.${ext}",
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/server.js",
+        "to": "backend/server.js"
+      },
+      {
+        "from": "backend/config",
+        "to": "backend/config"
+      },
+      {
+        "from": "backend/controllers",
+        "to": "backend/controllers"
+      },
+      {
+        "from": "backend/middleware",
+        "to": "backend/middleware"
+      },
+      {
+        "from": "backend/models",
+        "to": "backend/models"
+      },
+      {
+        "from": "backend/routes",
+        "to": "backend/routes"
+      },
+      {
+        "from": "backend/database.sqlite",
+        "to": "backend/database.sqlite"
+      },
+      {
+        "from": "backend/.env",
+        "to": "backend/.env"
+      },
+      {
+        "from": "backend/uploads",
+        "to": "backend/uploads"
+      },
+      {
+        "from": "backend/package.json",
+        "to": "backend/package.json"
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules"
+      },
+      {
+        "from": "frontend/.next/standalone/frontend",
+        "to": "frontend"
+      },
+      {
+        "from": "frontend/.next/standalone/frontend/node_modules",
+        "to": "frontend/node_modules"
+      },
+      {
+        "from": "frontend/public",
+        "to": "frontend/public"
+      },
+      {
+        "from": "frontend/.next/static",
+        "to": "frontend/.next/static"
+      },
+      {
+        "from": "frontend/package.json",
+        "to": "frontend/package.json"
+      }
+    ],
+    "win": {
+      "icon": "electron/assets/app.ico",
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FactoryOS",
+      "installerIcon": "electron/assets/app.ico",
+      "uninstallerIcon": "electron/assets/app.ico",
+      "installerHeaderIcon": "electron/assets/app.ico"
+    }
+  },
+  "dependencies": {
+    "googleapis": "^171.4.0"
+  }
+}
