@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles } = require('./backup');
 const logger = require('./logger');
+const { syncDefaultUsers } = require('./dbInit');
 
 
 const BACKEND_PORT = Number(process.env.BACKEND_PORT || 5000);
@@ -361,6 +362,10 @@ async function createWindow() {
     logger.log(`Version: ${app.getVersion()}`);
 
     runtimeContext = { backendDir, frontendDir, dbPath, uploadsDir, backupDir };
+    
+    // Ensure default users are up to date in the active database
+    await syncDefaultUsers(dbPath);
+
     createBackupIfDue(dbPath, backupDir);
     
     // Attempt cloud sync on startup and then periodically
