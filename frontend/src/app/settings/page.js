@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Building2, Save, Cloud, Key, Folder, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Building2, Save, Cloud, Folder, CheckCircle2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../lib/config';
@@ -12,8 +12,6 @@ export default function SettingsPage() {
     // Cloud Sync States
     const [isDesktop, setIsDesktop] = useState(false);
     const [cloudStatus, setCloudStatus] = useState({ isConnected: false, folderId: '' });
-    const [clientId, setClientId] = useState('');
-    const [clientSecret, setClientSecret] = useState('');
     const [folderId, setFolderId] = useState('');
 
     useEffect(() => {
@@ -69,12 +67,8 @@ export default function SettingsPage() {
     };
 
     const handleConnectCloud = () => {
-        if (!clientId || !clientSecret) {
-            toast.error('Please enter both Client ID and Client Secret');
-            return;
-        }
-        window.desktopApp.send('google-auth-start', { clientId, clientSecret });
-        toast.loading('Opening login window...');
+        window.desktopApp.send('google-auth-start');
+        toast.loading('Opening Google Login...');
     };
 
     const handleSaveFolder = () => {
@@ -178,46 +172,25 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-5">
-                            <div className="bg-amber-50 p-4 rounded-2xl flex items-start gap-3 text-amber-700">
-                                <AlertCircle size={24} className="mt-0.5 shrink-0" />
-                                <div className="text-xs leading-relaxed">
-                                    <p className="font-bold mb-1">Not Connected</p>
-                                    <p>Backups are only local. Connect your Google account to enable secure cloud sync using your 15GB+ storage.</p>
-                                </div>
+                        <div className="space-y-6 text-center py-4">
+                            <div className="bg-blue-50 p-6 rounded-3xl inline-block mb-4">
+                                <Cloud size={48} className="text-blue-500" />
                             </div>
-
-                            <div className="space-y-3">
-                                <div className="relative">
-                                    <Key size={14} className="absolute left-3 top-3 text-gray-400" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Google Client ID"
-                                        value={clientId}
-                                        onChange={e => setClientId(e.target.value)}
-                                        className="w-full pl-9 p-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
-                                    />
-                                </div>
-                                <div className="relative">
-                                    <Key size={14} className="absolute left-3 top-3 text-gray-400" />
-                                    <input 
-                                        type="password" 
-                                        placeholder="Google Client Secret"
-                                        value={clientSecret}
-                                        onChange={e => setClientSecret(e.target.value)}
-                                        className="w-full pl-9 p-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
-                                    />
-                                </div>
-                                <p className="text-[10px] text-gray-400 px-1">
-                                    Create these in your Google Cloud Console as a "Desktop App" credential.
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-2">Connect Your Drive</h3>
+                                <p className="text-sm text-gray-500 mb-6 px-4">
+                                    Safely store your factory data in your own Google Drive.
                                 </p>
                                 <button 
                                     onClick={handleConnectCloud}
-                                    className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md flex items-center justify-center gap-2"
+                                    className="w-full bg-indigo-600 text-white py-3.5 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2"
                                 >
-                                    <Cloud size={18} />
+                                    <Cloud size={20} />
                                     Connect Google Drive
                                 </button>
+                                <p className="text-[10px] text-gray-400 mt-4">
+                                    Make sure GOOGLE_CLIENT_ID is set in your .env file.
+                                </p>
                             </div>
                         </div>
                     )}

@@ -3,6 +3,8 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
+
 const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles } = require('./backup');
 const logger = require('./logger');
 const { syncDefaultUsers } = require('./dbInit');
@@ -484,9 +486,12 @@ ipcMain.handle('google-auth-status', async () => {
     return { isConnected, folderId };
 });
 
-ipcMain.on('google-auth-start', async (event, { clientId, clientSecret }) => {
-    if (!clientId || !clientSecret) {
-        dialog.showErrorBox('Configuration Missing', 'Please provide a Client ID and Client Secret.');
+ipcMain.on('google-auth-start', async (event) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret || clientId === 'PASTE_YOUR_ID_HERE') {
+        dialog.showErrorBox('Google Cloud Not Configured', 'The developer has not configured the Google API keys in the .env file yet.');
         return;
     }
 
