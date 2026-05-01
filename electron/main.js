@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles } = require('./backup');
+const logger = require('./logger');
+
 
 const BACKEND_PORT = Number(process.env.BACKEND_PORT || 5000);
 const FRONTEND_PORT = Number(process.env.FRONTEND_PORT || 3000);
@@ -233,6 +235,7 @@ function startBackend(backendDir, dbPath, uploadsDir) {
             JWT_SECRET: process.env.JWT_SECRET || 'factory_desktop_local_secret'
         };
 
+        logger.log(`Starting backend... DB: ${dbPath}`);
         backendProcess = spawnWithNodeRuntime(path.join(backendDir, 'server.js'), [], backendDir, env);
 
         backendProcess.once('error', reject);
@@ -258,13 +261,12 @@ function startFrontend(frontendDir) {
                 NODE_OPTIONS: '--max-old-space-size=4096'
             });
         } else {
-            const standaloneServerPath = path.join(frontendDir, 'server.js');
-            const standaloneDir = frontendDir;
             frontendProcess = spawnWithNodeRuntime(standaloneServerPath, [], standaloneDir, {
                 ...env,
                 PORT: String(FRONTEND_PORT),
                 HOSTNAME: '127.0.0.1'
             });
+            logger.log(`Starting frontend (Production mode) on port ${FRONTEND_PORT}`);
         }
 
         frontendProcess.once('error', reject);
@@ -351,6 +353,10 @@ async function createWindow() {
         validatePackagedRuntime(backendDir, frontendDir);
     }
     const { dbPath, uploadsDir, backupDir } = ensureWritableData(backendDir);
+    const userDataDir = app.getPath('userData');
+    logger.initLogger(userDataDir);
+    logger.log('--- App Startup ---');
+    logger.log(`Version: ${app.getVersion()}`);
 
     runtimeContext = { backendDir, frontendDir, dbPath, uploadsDir, backupDir };
     createBackupIfDue(dbPath, backupDir);

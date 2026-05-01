@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { google } = require('googleapis');
+const logger = require('./logger');
 
 const BACKUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const MAX_BACKUP_FILES = 14;
@@ -32,9 +33,9 @@ function pruneOldBackups(backupDir) {
 
     backups.slice(MAX_BACKUP_FILES).forEach((backup) => {
         fs.unlinkSync(backup.fullPath);
+        logger.log(`Pruned old backup: ${backup.name}`);
     });
 
-    // Cleanup sync status for deleted files
     const syncStatus = readCloudSyncStatus(backupDir);
     const updatedStatus = {};
     const remainingFileNames = backups.slice(0, MAX_BACKUP_FILES).map(b => b.name);
@@ -80,6 +81,7 @@ function writeCloudSyncStatus(backupDir, status) {
 function createBackupNow(dbPath, backupDir) {
     ensureDirectory(backupDir);
     if (!fs.existsSync(dbPath)) {
+        logger.error(`Backup failed: Database not found at ${dbPath}`);
         throw new Error(`Database not found at ${dbPath}`);
     }
 
@@ -89,11 +91,11 @@ function createBackupNow(dbPath, backupDir) {
     const fileName = path.basename(backupPath);
     writeLastBackupAt(backupDir, Date.now());
     
-    // Mark as pending for cloud sync
     const syncStatus = readCloudSyncStatus(backupDir);
     syncStatus[fileName] = { status: 'pending', createdAt: Date.now() };
     writeCloudSyncStatus(backupDir, syncStatus);
 
+    logger.log(`Created new local backup: ${fileName}`);
     pruneOldBackups(backupDir);
     return backupPath;
 }
@@ -147,6 +149,7 @@ function ensurePlaceholderFiles(userDataDir) {
             "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/YOUR_SERVICE_ACCOUNT_EMAIL"
         };
         fs.writeFileSync(serviceAccountPath, JSON.stringify(saPlaceholder, null, 2), 'utf8');
+        logger.log('Created placeholder service-account.json');
     }
 
     if (!fs.existsSync(configPath)) {
@@ -154,6 +157,7 @@ function ensurePlaceholderFiles(userDataDir) {
             "googleDriveFolderId": "PASTE_YOUR_FOLDER_ID_HERE"
         };
         fs.writeFileSync(configPath, JSON.stringify(configPlaceholder, null, 2), 'utf8');
+        logger.log('Created placeholder backup-config.json');
     }
 }
 
@@ -163,7 +167,7 @@ async function syncWithCloud(backupDir, userDataDir) {
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
 
     if (!isCloudSyncConfigured(userDataDir)) {
-        console.log('Cloud sync skipped: Configuration is missing or invalid.');
+        logger.log('Cloud sync skipped: Configuration is missing or invalid.');
         return;
     }
 
@@ -172,7 +176,7 @@ async function syncWithCloud(backupDir, userDataDir) {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         folderId = config.googleDriveFolderId;
     } catch (err) {
-        console.error('Error reading backup-config.json:', err);
+        logger.error('Error reading backup-config.json', err);
         return;
     }
 
@@ -189,13 +193,19 @@ async function syncWithCloud(backupDir, userDataDir) {
     
     if (hasNewPending) {
         writeCloudSyncStatus(backupDir, syncStatus);
+        logger.log(`Detected ${filesInDir.length} files, updated sync status.`);
     }
 
     const pendingFiles = Object.keys(syncStatus)
         .filter(name => syncStatus[name].status === 'pending')
         .sort((a, b) => syncStatus[b].createdAt - syncStatus[a].createdAt);
 
-    if (pendingFiles.length === 0) return;
+    if (pendingFiles.length === 0) {
+        logger.log('No pending files for cloud sync.');
+        return;
+    }
+
+    logger.log(`Starting cloud sync for ${pendingFiles.length} files...`);
 
     try {
         const auth = new google.auth.GoogleAuth({
@@ -209,7 +219,7 @@ async function syncWithCloud(backupDir, userDataDir) {
             const filePath = path.join(backupDir, fileName);
             if (!fs.existsSync(filePath)) continue;
 
-            console.log(`Syncing ${fileName} to Google Drive...`);
+            logger.log(`Uploading ${fileName} to Google Drive folder: ${folderId}`);
             
             try {
                 await drive.files.create({
@@ -226,13 +236,13 @@ async function syncWithCloud(backupDir, userDataDir) {
                 syncStatus[fileName].status = 'synced';
                 syncStatus[fileName].syncedAt = Date.now();
                 writeCloudSyncStatus(backupDir, syncStatus);
-                console.log(`Successfully synced ${fileName}`);
+                logger.log(`Successfully uploaded: ${fileName}`);
             } catch (err) {
-                console.error(`Failed to upload ${fileName}:`, err.message);
+                logger.error(`Upload failed for ${fileName}`, err);
             }
         }
     } catch (error) {
-        console.error('Cloud Sync Connection Failed:', error.message);
+        logger.error('Cloud Sync Connection Error', error);
     }
 }
 
