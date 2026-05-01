@@ -106,6 +106,7 @@ function createBackupIfDue(dbPath, backupDir) {
 }
 
 async function syncWithCloud(backupDir, userDataDir) {
+    ensureDirectory(backupDir);
     const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
 
@@ -124,17 +125,33 @@ async function syncWithCloud(backupDir, userDataDir) {
         }
     }
 
-    if (!folderId) {
-        console.log('Cloud sync skipped: googleDriveFolderId missing in backup-config.json');
-        // Create template if missing
+    if (!folderId || folderId === "PASTE_YOUR_FOLDER_ID_HERE") {
+        console.log('Cloud sync skipped: googleDriveFolderId not configured');
         if (!fs.existsSync(configPath)) {
             fs.writeFileSync(configPath, JSON.stringify({ googleDriveFolderId: "PASTE_YOUR_FOLDER_ID_HERE" }, null, 2));
         }
         return;
     }
 
+    // NEW: Scan for existing backups that aren't in the sync status yet
     const syncStatus = readCloudSyncStatus(backupDir);
-    const pendingFiles = Object.keys(syncStatus).filter(name => syncStatus[name].status === 'pending');
+    const filesInDir = fs.readdirSync(backupDir).filter(name => name.endsWith('.sqlite'));
+    let hasNewPending = false;
+    
+    filesInDir.forEach(name => {
+        if (!syncStatus[name]) {
+            syncStatus[name] = { status: 'pending', createdAt: fs.statSync(path.join(backupDir, name)).mtimeMs };
+            hasNewPending = true;
+        }
+    });
+    
+    if (hasNewPending) {
+        writeCloudSyncStatus(backupDir, syncStatus);
+    }
+
+    const pendingFiles = Object.keys(syncStatus)
+        .filter(name => syncStatus[name].status === 'pending')
+        .sort((a, b) => syncStatus[b].createdAt - syncStatus[a].createdAt);
 
     if (pendingFiles.length === 0) return;
 
@@ -152,24 +169,29 @@ async function syncWithCloud(backupDir, userDataDir) {
 
             console.log(`Syncing ${fileName} to Google Drive...`);
             
-            await drive.files.create({
-                requestBody: {
-                    name: fileName,
-                    parents: [folderId],
-                },
-                media: {
-                    mimeType: 'application/x-sqlite3',
-                    body: fs.createReadStream(filePath),
-                },
-            });
+            try {
+                await drive.files.create({
+                    requestBody: {
+                        name: fileName,
+                        parents: [folderId],
+                    },
+                    media: {
+                        mimeType: 'application/x-sqlite3',
+                        body: fs.createReadStream(filePath),
+                    },
+                });
 
-            syncStatus[fileName].status = 'synced';
-            syncStatus[fileName].syncedAt = Date.now();
-            writeCloudSyncStatus(backupDir, syncStatus);
-            console.log(`Successfully synced ${fileName}`);
+                syncStatus[fileName].status = 'synced';
+                syncStatus[fileName].syncedAt = Date.now();
+                writeCloudSyncStatus(backupDir, syncStatus);
+                console.log(`Successfully synced ${fileName}`);
+            } catch (err) {
+                console.error(`Failed to upload ${fileName}:`, err.message);
+                // Continue to next file if one fails
+            }
         }
     } catch (error) {
-        console.error('Cloud Sync Failed:', error.message);
+        console.error('Cloud Sync Connection Failed:', error.message);
     }
 }
 
