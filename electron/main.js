@@ -3,7 +3,24 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
+
+function loadEnv() {
+    const devPath = path.join(__dirname, '..', 'backend', '.env');
+    const prodPath = path.join(process.resourcesPath, 'backend', '.env');
+    const rootPath = path.join(app.getAppPath(), '..', 'backend', '.env');
+
+    if (fs.existsSync(devPath)) {
+        require('dotenv').config({ path: devPath });
+        return devPath;
+    } else if (fs.existsSync(prodPath)) {
+        require('dotenv').config({ path: prodPath });
+        return prodPath;
+    } else if (fs.existsSync(rootPath)) {
+        require('dotenv').config({ path: rootPath });
+        return rootPath;
+    }
+    return null;
+}
 
 const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles } = require('./backup');
 const logger = require('./logger');
@@ -360,8 +377,15 @@ async function createWindow() {
     const { dbPath, uploadsDir, backupDir } = ensureWritableData(backendDir);
     const userDataDir = app.getPath('userData');
     logger.initLogger(userDataDir);
+    
+    const loadedPath = loadEnv();
     logger.log('--- App Startup ---');
     logger.log(`Version: ${app.getVersion()}`);
+    if (loadedPath) {
+        logger.log(`Loaded environment from: ${loadedPath}`);
+    } else {
+        logger.error('Could not find .env file in any expected location');
+    }
 
     runtimeContext = { backendDir, frontendDir, dbPath, uploadsDir, backupDir };
     
