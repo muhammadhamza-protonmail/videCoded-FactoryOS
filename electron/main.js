@@ -362,7 +362,6 @@ async function createWindow() {
     createBackupIfDue(dbPath, backupDir);
     
     // Attempt cloud sync on startup and then periodically
-    const userDataDir = app.getPath('userData');
     ensurePlaceholderFiles(userDataDir);
 
     if (!isCloudSyncConfigured(userDataDir)) {
