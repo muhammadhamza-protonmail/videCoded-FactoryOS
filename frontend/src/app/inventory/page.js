@@ -138,8 +138,8 @@ export default function InventoryPage() {
 
     // ── Item options based on type ────────────────────────────────
     const itemOptions = form.item_type === 'product'
-        ? products.map(p => ({ value: p.product_id, label: ` (Stock: )`, unit: p.unit }))
-        : materials.map(m => ({ value: m.material_id, label: ` (Stock: )`, unit: m.unit }));
+        ? products.map(p => ({ value: p.product_id, label: `${p.name} (Stock: ${p.current_stock})`, unit: p.unit }))
+        : materials.map(m => ({ value: m.material_id, label: `${m.name} (Stock: ${m.current_stock})`, unit: m.unit }));
 
     if (loading) return (
         <div className="flex items-center justify-center h-64">
