@@ -22,7 +22,7 @@ function loadEnv() {
     return null;
 }
 
-const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles } = require('./backup');
+const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles, getBackupDirectory } = require('./backup');
 const logger = require('./logger');
 const { syncDefaultUsers } = require('./dbInit');
 
@@ -74,7 +74,7 @@ function ensureWritableData(backendDir) {
     const userDataDir = app.getPath('userData');
     const dataDir = path.join(userDataDir, 'data');
     const uploadsDir = path.join(userDataDir, 'uploads');
-    const backupDir = path.join(userDataDir, 'backups');
+    const backupDir = getBackupDirectory(userDataDir);
     const dbTargetPath = path.join(dataDir, 'database.sqlite');
     const dbSourcePath = path.join(backendDir, 'database.sqlite');
 
@@ -393,6 +393,13 @@ async function createWindow() {
     await syncDefaultUsers(dbPath);
 
     createBackupIfDue(dbPath, backupDir);
+    setInterval(() => {
+        try {
+            createBackupIfDue(dbPath, backupDir);
+        } catch (error) {
+            logger.error('Periodic backup check failed', error);
+        }
+    }, 30 * 60 * 1000);
     
     // Attempt cloud sync on startup and then periodically
     ensurePlaceholderFiles(userDataDir);
@@ -499,15 +506,19 @@ ipcMain.handle('google-auth-status', async () => {
     
     let isConnected = fs.existsSync(authPath);
     let folderId = '';
+    let backupDirectory = getBackupDirectory(userDataDir);
     
     if (fs.existsSync(configPath)) {
         try {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             folderId = config.googleDriveFolderId || '';
+            if (config.backupDirectory) {
+                backupDirectory = config.backupDirectory;
+            }
         } catch {}
     }
     
-    return { isConnected, folderId };
+    return { isConnected, folderId, backupDirectory };
 });
 
 ipcMain.on('google-auth-start', async (event) => {
@@ -534,30 +545,53 @@ ipcMain.on('google-auth-start', async (event) => {
 
     // Start local server to catch the code
     const server = http.createServer(async (req, res) => {
-        if (req.url.startsWith('/?code=')) {
-            const code = new URL(req.url, 'http://127.0.0.1:42813').searchParams.get('code');
+        try {
+            const url = new URL(req.url, 'http://127.0.0.1:42813');
+            const code = url.searchParams.get('code');
+            const authError = url.searchParams.get('error');
+
+            if (authError) {
+                res.end('Authentication was cancelled or denied. You can close this window.');
+                server.close();
+                event.sender.send('google-auth-failed', `Google returned: ${authError}`);
+                return;
+            }
+
+            if (!code) {
+                res.end('Waiting for authorization...');
+                return;
+            }
+
             res.end('Authentication successful! You can close this window.');
             server.close();
 
-            try {
-                const { tokens } = await oauth2Client.getToken(code);
-                const userDataDir = app.getPath('userData');
-                
-                // Save tokens
-                fs.writeFileSync(path.join(userDataDir, 'google-auth.json'), JSON.stringify({
-                    clientId,
-                    clientSecret,
-                    tokens
-                }, null, 2));
+            const { tokens } = await oauth2Client.getToken(code);
+            const userDataDir = app.getPath('userData');
+            
+            // Save tokens
+            fs.writeFileSync(path.join(userDataDir, 'google-auth.json'), JSON.stringify({
+                clientId,
+                clientSecret,
+                tokens
+            }, null, 2));
 
-                logger.log('Google Drive connected successfully!');
-                event.sender.send('google-auth-success');
-            } catch (err) {
-                logger.error('Failed to get Google tokens', err);
-                dialog.showErrorBox('Auth Failed', err.message);
-            }
+            logger.log('Google Drive connected successfully!');
+            event.sender.send('google-auth-success');
+        } catch (err) {
+            logger.error('Failed to complete Google auth callback', err);
+            event.sender.send('google-auth-failed', err.message || 'Authentication failed');
+            try {
+                server.close();
+            } catch {}
         }
-    }).listen(42813);
+    });
+
+    server.on('error', (err) => {
+        logger.error('Google auth local callback server failed', err);
+        event.sender.send('google-auth-failed', err.message || 'Local callback server failed');
+    });
+
+    server.listen(42813, '127.0.0.1');
 
     shell.openExternal(authUrl);
 });
@@ -574,5 +608,20 @@ ipcMain.on('google-set-folder', async (event, folderId) => {
     config.googleDriveFolderId = folderId;
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     logger.log(`Updated Google Drive folder ID: ${folderId}`);
+    event.sender.send('google-config-updated');
+});
+
+ipcMain.on('google-set-backup-dir', async (event, backupDirectory) => {
+    const userDataDir = app.getPath('userData');
+    const configPath = path.join(userDataDir, 'backup-config.json');
+    
+    let config = {};
+    if (fs.existsSync(configPath)) {
+        try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+    }
+
+    config.backupDirectory = (backupDirectory || '').trim();
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    logger.log(`Updated custom backup directory: ${config.backupDirectory || '(default)'}`);
     event.sender.send('google-config-updated');
 });

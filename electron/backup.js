@@ -136,10 +136,34 @@ function ensurePlaceholderFiles(userDataDir) {
     const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
     if (!fs.existsSync(configPath)) {
         const configPlaceholder = {
-            "googleDriveFolderId": "PASTE_YOUR_FOLDER_ID_HERE"
+            "googleDriveFolderId": "PASTE_YOUR_FOLDER_ID_HERE",
+            "backupDirectory": ""
         };
         fs.writeFileSync(configPath, JSON.stringify(configPlaceholder, null, 2), 'utf8');
         logger.log('Created placeholder backup-config.json');
+    }
+}
+
+function getBackupDirectory(userDataDir) {
+    const defaultDir = path.join(userDataDir, 'backups');
+    const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
+
+    if (!fs.existsSync(configPath)) return defaultDir;
+
+    try {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const configured = (config.backupDirectory || '').trim();
+        if (!configured) return defaultDir;
+
+        const resolved = path.isAbsolute(configured)
+            ? configured
+            : path.resolve(userDataDir, configured);
+
+        ensureDirectory(resolved);
+        return resolved;
+    } catch (error) {
+        logger.error('Failed to resolve backup directory from config', error);
+        return defaultDir;
     }
 }
 
@@ -255,5 +279,6 @@ module.exports = {
     createBackupIfDue,
     syncWithCloud,
     isCloudSyncConfigured,
-    ensurePlaceholderFiles
+    ensurePlaceholderFiles,
+    getBackupDirectory
 };

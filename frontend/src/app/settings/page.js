@@ -13,6 +13,7 @@ export default function SettingsPage() {
     const [isDesktop, setIsDesktop] = useState(false);
     const [cloudStatus, setCloudStatus] = useState({ isConnected: false, folderId: '' });
     const [folderId, setFolderId] = useState('');
+    const [backupDirectory, setBackupDirectory] = useState('');
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -35,8 +36,14 @@ export default function SettingsPage() {
             refreshCloudStatus();
             
             window.desktopApp.on('google-auth-success', () => {
+                toast.dismiss();
                 toast.success('Google Drive connected successfully!');
                 refreshCloudStatus();
+            });
+
+            window.desktopApp.on('google-auth-failed', (message) => {
+                toast.dismiss();
+                toast.error(message || 'Google authentication failed');
             });
             
             window.desktopApp.on('google-config-updated', () => {
@@ -51,6 +58,7 @@ export default function SettingsPage() {
             const status = await window.desktopApp.invoke('google-auth-status');
             setCloudStatus(status);
             setFolderId(status.folderId);
+            setBackupDirectory(status.backupDirectory || '');
         }
     };
 
@@ -77,6 +85,10 @@ export default function SettingsPage() {
             return;
         }
         window.desktopApp.send('google-set-folder', folderId);
+    };
+
+    const handleSaveBackupDir = () => {
+        window.desktopApp.send('google-set-backup-dir', backupDirectory);
     };
 
     if (loading) return <div className="p-10 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
@@ -170,6 +182,7 @@ export default function SettingsPage() {
                                     Save Folder ID
                                 </button>
                             </div>
+
                         </div>
                     ) : (
                         <div className="space-y-6 text-center py-4">
@@ -194,6 +207,30 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     )}
+
+                    <div className="space-y-4 pt-4 border-t border-gray-100 mt-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Backup Directory
+                            </label>
+                            <input
+                                type="text"
+                                value={backupDirectory}
+                                onChange={e => setBackupDirectory(e.target.value)}
+                                placeholder="Leave blank to use default AppData location"
+                                className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50"
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1">
+                                Current backups are saved in: {backupDirectory || 'Default AppData backup folder'}
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleSaveBackupDir}
+                            className="w-full bg-slate-600 text-white py-2.5 rounded-xl font-medium hover:bg-slate-700 transition-colors"
+                        >
+                            Save Backup Directory
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

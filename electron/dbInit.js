@@ -41,13 +41,13 @@ async function syncDefaultUsers(dbPath) {
         for (const user of users) {
             const existing = await db.get('SELECT * FROM users WHERE username = ?', [user.username]);
             if (existing) {
-                // Ensure password and factory_id match
-                if (existing.password !== user.password || !existing.factory_id) {
+                // Ensure system users are linked to a valid factory, but do not overwrite changed passwords.
+                if (!existing.factory_id) {
                     await db.run(
-                        'UPDATE users SET password = ?, factory_id = ? WHERE username = ?', 
-                        [user.password, factory.factory_id, user.username]
+                        'UPDATE users SET factory_id = ? WHERE username = ?', 
+                        [factory.factory_id, user.username]
                     );
-                    logger.log(`Synced account for ${user.username} with factory ${factory.factory_id}`);
+                    logger.log(`Synced factory for ${user.username} to ${factory.factory_id}`);
                 }
             } else {
                 // Create if missing
