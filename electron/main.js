@@ -395,11 +395,13 @@ async function createWindow() {
     createBackupIfDue(dbPath, backupDir);
     setInterval(() => {
         try {
-            createBackupIfDue(dbPath, backupDir);
+            // Re-resolve the backup directory each time in case it was changed in Settings
+            const currentBackupDir = getBackupDirectory(userDataDir);
+            createBackupIfDue(dbPath, currentBackupDir);
         } catch (error) {
             logger.error('Periodic backup check failed', error);
         }
-    }, 30 * 60 * 1000);
+    }, 30 * 60 * 1000); // Check every 30 minutes, backup fires if 6 hours have passed
     
     // Attempt cloud sync on startup and then periodically
     ensurePlaceholderFiles(userDataDir);

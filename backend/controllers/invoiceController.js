@@ -117,12 +117,42 @@ const createInvoice = async (req, res) => {
             [newId, invoiceNo, invoiceDate, customer_id, due_date || null, totalAmount, 0, totalAmount, 'unpaid', factory_id]
         );
 
+        // ── Insert items, deduct stock, log inventory OUT movements ──
+        const movCountRes = await client.query(`SELECT COUNT(*) as cnt FROM inventory_movements`);
+        let movCnt = Number(movCountRes.rows[0].cnt || movCountRes.rows[0]['COUNT(*)'] || 0);
+
         for (const item of items) {
             await client.query(
                 `INSERT INTO invoice_items
             (invoice_id, product_id, quantity, unit_price, factory_id)
             VALUES ($1, $2, $3, $4, $5)`,
                 [newId, item.product_id, item.quantity, item.unit_price, factory_id]
+            );
+
+            // Deduct from product stock
+            await client.query(
+                `UPDATE products SET current_stock = current_stock - $1 WHERE product_id = $2 AND factory_id = $3`,
+                [item.quantity, item.product_id, factory_id]
+            );
+
+            // Log inventory OUT movement
+            movCnt++;
+            const movId = 'IM' + String(movCnt).padStart(3, '0');
+            await client.query(
+                `INSERT INTO inventory_movements
+                (movement_id, date, type, item_type, item_id, quantity, unit, reference, notes, unit_price, total_amount, factory_id)
+                VALUES ($1, $2, 'OUT', 'product', $3, $4, 'piece', $5, $6, $7, $8, $9)`,
+                [
+                    movId,
+                    invoiceDate,
+                    item.product_id,
+                    item.quantity,
+                    invoiceNo,
+                    `Auto-deducted on invoice ${invoiceNo}`,
+                    item.unit_price,
+                    item.quantity * item.unit_price,
+                    factory_id
+                ]
             );
         }
 
@@ -185,7 +215,25 @@ const deleteInvoice = async (req, res) => {
         if (pCount > 0)
             return res.status(400).json({ error: 'Cannot delete — invoice has payments recorded.' });
 
+        // Get items before deleting to restore stock
+        const itemsToRestore = await client.query(
+            `SELECT * FROM invoice_items WHERE invoice_id = $1 AND factory_id = $2`, [id, factory_id]
+        );
+
         await client.query('BEGIN');
+
+        // Restore product stock and remove auto-generated inventory movements
+        for (const item of itemsToRestore.rows) {
+            await client.query(
+                `UPDATE products SET current_stock = current_stock + $1 WHERE product_id = $2 AND factory_id = $3`,
+                [item.quantity, item.product_id, factory_id]
+            );
+            await client.query(
+                `DELETE FROM inventory_movements WHERE reference = $1 AND item_id = $2 AND type = 'OUT' AND factory_id = $3`,
+                [invoice.rows[0].invoice_no, item.product_id, factory_id]
+            );
+        }
+
         await client.query(
             `UPDATE customers SET balance_due = balance_due - $1 WHERE customer_id = $2 AND factory_id = $3`,
             [invoice.rows[0].total_amount, invoice.rows[0].customer_id, factory_id]
