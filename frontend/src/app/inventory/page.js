@@ -499,75 +499,6 @@ export default function InventoryPage() {
                         </div>
                     </div>
 
-                                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-4">Notes</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {filtered.map(mv => (
-                                        <tr key={mv.movement_id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 text-sm font-medium text-gray-700">{mv.movement_id}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-600">
-                                                {new Date(mv.date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                            </td>
-                                            <td className="px-6 py-4"><TypeBadge type={mv.type} /></td>
-                                            <td className="px-6 py-4">
-                                                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${mv.item_type === 'product'
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : 'bg-orange-100 text-orange-700'
-                                                    }`}>
-                                                    {mv.item_type === 'product' ? '📦 Product' : '🏭 Material'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-600">{mv.item_id}</td>
-                                            <td className="px-6 py-4">
-                                                <span className={`text-sm font-bold ${mv.type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {mv.type === 'IN' ? '+' : '-'}{Number(mv.quantity).toLocaleString()} {mv.unit}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-600">{mv.reference || '—'}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">{mv.notes || '—'}</td>
-                                        </tr>
-                                    ))}
-                                    {filtered.length === 0 && (
-                                        <tr>
-                                            <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
-                                                <TrendingUp size={40} className="mx-auto mb-3 opacity-30" />
-                                                <p>No movements found</p>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Add Movement Modal ── */}
-            {showAdd && (
-                <Modal title="Add Stock Movement" onClose={() => setShowAdd(false)}>
-
-                    {/* IN / OUT Toggle */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Movement Type</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {['IN', 'OUT'].map(t => (
-                                <button
-                                    key={t}
-                                    onClick={() => setForm({ ...form, type: t })}
-                                    className={`py-3 rounded-xl text-sm font-medium transition-all border-2 ${form.type === t
-                                        ? t === 'IN'
-                                            ? 'bg-green-500 text-white border-green-500'
-                                            : 'bg-red-500 text-white border-red-500'
-                                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                                        }`}
-                                >
-                                    {t === 'IN' ? '📥 Stock In' : '📤 Stock Out'}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
                     {/* Product / Material Toggle */}
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Item Type</label>
@@ -575,7 +506,7 @@ export default function InventoryPage() {
                             {['product', 'raw_material'].map(t => (
                                 <button
                                     key={t}
-                                    onClick={() => setForm({ ...form, item_type: t, item_id: '', unit: '' })}
+                                    onClick={() => setForm({ ...form, item_type: t, item_id: '' })}
                                     className={`py-2.5 rounded-xl text-sm font-medium transition-all border-2 ${form.item_type === t
                                         ? 'bg-blue-500 text-white border-blue-500'
                                         : 'border-gray-200 text-gray-600 hover:border-gray-300'
@@ -594,12 +525,7 @@ export default function InventoryPage() {
                         </label>
                         <select
                             value={form.item_id}
-                            onChange={e => {
-                                const selectedId = e.target.value;
-                                const selectedItem = itemOptions.find(o => o.value === selectedId);
-                                setForm({ ...form, item_id: selectedId, unit: selectedItem ? selectedItem.unit : '' });
-                            }}
-                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            onChange={e => { const selectedId = e.target.value; const selectedItem = itemOptions.find(o => o.value === selectedId); setForm({ ...form, item_id: selectedId, unit: selectedItem ? selectedItem.unit : '' }); }} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="">-- Select --</option>
                             {itemOptions.map(o => (
@@ -624,13 +550,7 @@ export default function InventoryPage() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                            <input
-                                type="text"
-                                value={form.unit}
-                                readOnly
-                                disabled
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
-                            />
+                            <input type="text" value={form.unit} readOnly disabled className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
                         </div>
                     </div>
 
