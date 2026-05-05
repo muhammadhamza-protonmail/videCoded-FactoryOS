@@ -22,7 +22,7 @@ function loadEnv() {
     return null;
 }
 
-const { createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles, getBackupDirectory } = require('./backup');
+const { createBackupNow, createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles, getBackupDirectory } = require('./backup');
 const logger = require('./logger');
 const { syncDefaultUsers } = require('./dbInit');
 
