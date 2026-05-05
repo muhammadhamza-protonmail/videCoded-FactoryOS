@@ -2,6 +2,20 @@ const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const logger = require('./logger');
 
+async function runMigrations(db) {
+    try {
+        // Add created_at to inventory_movements if missing
+        const cols = await db.all(`PRAGMA table_info(inventory_movements)`);
+        const hasCreatedAt = cols.some(c => c.name === 'created_at');
+        if (!hasCreatedAt) {
+            await db.run(`ALTER TABLE inventory_movements ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))`);
+            logger.log('Migration: added created_at to inventory_movements');
+        }
+    } catch (err) {
+        logger.error('Migration failed', err);
+    }
+}
+
 async function syncDefaultUsers(dbPath) {
     let db;
     try {
@@ -9,6 +23,8 @@ async function syncDefaultUsers(dbPath) {
             filename: dbPath,
             driver: sqlite3.Database
         });
+
+        await runMigrations(db);
 
         // 1. Ensure at least one factory exists
         let factory = await db.get('SELECT * FROM factories LIMIT 1');

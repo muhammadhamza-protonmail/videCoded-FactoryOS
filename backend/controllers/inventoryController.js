@@ -6,7 +6,7 @@ const getAllMovements = async (req, res) => {
         const result = await pool.query(
             `SELECT * FROM inventory_movements 
              WHERE factory_id = $1
-             ORDER BY date DESC, movement_id DESC`,
+             ORDER BY rowid DESC`,
             [req.user.factory_id]
         );
         res.json(result.rows);
@@ -150,7 +150,7 @@ const getProductMovements = async (req, res) => {
         if (product.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
 
         const movements = await pool.query(
-            `SELECT * FROM inventory_movements WHERE item_type = 'product' AND item_id = $1 AND factory_id = $2 ORDER BY date DESC`,
+            `SELECT * FROM inventory_movements WHERE item_type = 'product' AND item_id = $1 AND factory_id = $2 ORDER BY rowid DESC`,
             [id, factory_id]
         );
 
@@ -170,7 +170,7 @@ const getMaterialMovements = async (req, res) => {
         if (material.rows.length === 0) return res.status(404).json({ error: 'Material not found' });
 
         const movements = await pool.query(
-            `SELECT * FROM inventory_movements WHERE item_type = 'raw_material' AND item_id = $1 AND factory_id = $2 ORDER BY date DESC`,
+            `SELECT * FROM inventory_movements WHERE item_type = 'raw_material' AND item_id = $1 AND factory_id = $2 ORDER BY rowid DESC`,
             [id, factory_id]
         );
 

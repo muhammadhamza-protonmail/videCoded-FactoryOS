@@ -627,3 +627,39 @@ ipcMain.on('google-set-backup-dir', async (event, backupDirectory) => {
     logger.log(`Updated custom backup directory: ${config.backupDirectory || '(default)'}`);
     event.sender.send('google-config-updated');
 });
+// --- Manual Backup Now IPC Handler ---
+ipcMain.handle('backup-now', async () => {
+    const userDataDir = app.getPath('userData');
+    const { dbPath } = runtimeContext || {};
+    const backupDir = getBackupDirectory(userDataDir);
+
+    if (!dbPath) {
+        return { localSuccess: false, cloudSuccess: false, error: 'App not fully started yet.' };
+    }
+
+    let localSuccess = false;
+    try {
+        createBackupNow(dbPath, backupDir);
+        localSuccess = true;
+        logger.log('Manual backup triggered: local backup created.');
+    } catch (err) {
+        logger.error('Manual backup: local backup failed', err);
+        return { localSuccess: false, cloudSuccess: false, error: err.message };
+    }
+
+    let cloudSuccess = false;
+    let cloudSkipped = false;
+    try {
+        if (isCloudSyncConfigured(userDataDir)) {
+            await syncWithCloud(backupDir, userDataDir);
+            cloudSuccess = true;
+            logger.log('Manual backup triggered: cloud sync completed.');
+        } else {
+            cloudSkipped = true;
+        }
+    } catch (err) {
+        logger.error('Manual backup: cloud sync failed, will auto-retry later', err);
+    }
+
+    return { localSuccess, cloudSuccess, cloudSkipped };
+});

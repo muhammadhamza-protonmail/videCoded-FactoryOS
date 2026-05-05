@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
         }
     },
     invoke: (channel, data) => {
-        const validChannels = ['google-auth-status'];
+        const validChannels = ['google-auth-status', 'backup-now'];
         if (validChannels.includes(channel)) {
             return ipcRenderer.invoke(channel, data);
         }

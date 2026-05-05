@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Building2, Save, Cloud, Folder, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Building2, Save, Cloud, Folder, CheckCircle2, HardDrive, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../lib/config';
@@ -14,6 +14,7 @@ export default function SettingsPage() {
     const [cloudStatus, setCloudStatus] = useState({ isConnected: false, folderId: '' });
     const [folderId, setFolderId] = useState('');
     const [backupDirectory, setBackupDirectory] = useState('');
+    const [backupInProgress, setBackupInProgress] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -85,6 +86,31 @@ export default function SettingsPage() {
             return;
         }
         window.desktopApp.send('google-set-folder', folderId);
+    };
+
+    const handleBackupNow = async () => {
+        setBackupInProgress(true);
+        const toastId = toast.loading('Creating backup...');
+        try {
+            const result = await window.desktopApp.invoke('backup-now');
+            toast.dismiss(toastId);
+            if (result.error) {
+                toast.error(`Backup failed: ${result.error}`);
+            } else if (result.localSuccess && result.cloudSuccess) {
+                toast.success('✅ Backup saved locally & uploaded to Google Drive!');
+            } else if (result.localSuccess && result.cloudSkipped) {
+                toast.success('✅ Local backup created! (Google Drive not connected)');
+            } else if (result.localSuccess) {
+                toast('⚠️ Local backup done. Cloud sync failed — will retry automatically.', { icon: '🔄' });
+            } else {
+                toast.error('Backup failed. Check app logs.');
+            }
+        } catch (err) {
+            toast.dismiss(toastId);
+            toast.error('Backup failed unexpectedly.');
+        } finally {
+            setBackupInProgress(false);
+        }
     };
 
     const handleSaveBackupDir = () => {
@@ -230,6 +256,23 @@ export default function SettingsPage() {
                         >
                             Save Backup Directory
                         </button>
+                    </div>
+
+                    {/* Backup Now Button */}
+                    <div className="pt-4 border-t border-gray-100 mt-2">
+                        <button
+                            onClick={handleBackupNow}
+                            disabled={backupInProgress}
+                            className="w-full bg-indigo-500 text-white py-3 rounded-xl font-bold hover:bg-indigo-600 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {backupInProgress
+                                ? <><Loader2 size={18} className="animate-spin" /> Backing up...</>
+                                : <><HardDrive size={18} /> Backup Now</>
+                            }
+                        </button>
+                        <p className="text-[10px] text-gray-400 mt-2 text-center">
+                            Creates a local backup immediately and uploads to Google Drive if connected.
+                        </p>
                     </div>
                 </div>
             )}
