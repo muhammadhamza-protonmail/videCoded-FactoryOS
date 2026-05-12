@@ -508,19 +508,20 @@ ipcMain.handle('google-auth-status', async () => {
     
     let isConnected = fs.existsSync(authPath);
     let folderId = '';
-    let backupDirectory = getBackupDirectory(userDataDir);
+    const effectiveBackupDirectory = getBackupDirectory(userDataDir);
+    let backupDirectory = effectiveBackupDirectory;
     
     if (fs.existsSync(configPath)) {
         try {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             folderId = config.googleDriveFolderId || '';
-            if (config.backupDirectory) {
+            if (config.backupDirectory && String(config.backupDirectory).trim()) {
                 backupDirectory = config.backupDirectory;
             }
         } catch {}
     }
     
-    return { isConnected, folderId, backupDirectory };
+    return { isConnected, folderId, backupDirectory, effectiveBackupDirectory };
 });
 
 ipcMain.on('google-auth-start', async (event) => {
@@ -638,13 +639,14 @@ ipcMain.handle('backup-now', async () => {
     }
 
     let localSuccess = false;
+    let localBackupPath = '';
     try {
-        createBackupNow(dbPath, backupDir);
+        localBackupPath = createBackupNow(dbPath, backupDir);
         localSuccess = true;
-        logger.log('Manual backup triggered: local backup created.');
+        logger.log(`Manual backup triggered: local backup created at ${localBackupPath}`);
     } catch (err) {
         logger.error('Manual backup: local backup failed', err);
-        return { localSuccess: false, cloudSuccess: false, error: err.message };
+        return { localSuccess: false, cloudSuccess: false, error: err.message, backupDir };
     }
 
     let cloudSuccess = false;
@@ -661,5 +663,5 @@ ipcMain.handle('backup-now', async () => {
         logger.error('Manual backup: cloud sync failed, will auto-retry later', err);
     }
 
-    return { localSuccess, cloudSuccess, cloudSkipped };
+    return { localSuccess, cloudSuccess, cloudSkipped, localBackupPath, backupDir };
 });

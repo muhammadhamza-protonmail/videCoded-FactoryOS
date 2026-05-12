@@ -122,17 +122,25 @@ const createInvoice = async (req, res) => {
         let movCnt = Number(movCountRes.rows[0].cnt || movCountRes.rows[0]['COUNT(*)'] || 0);
 
         for (const item of items) {
+            const normalizedQuantity = Math.round(Number(item.quantity || 0));
+            if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Each invoice item quantity must be a valid positive number' });
+            }
+
             await client.query(
                 `INSERT INTO invoice_items
             (invoice_id, product_id, quantity, unit_price, factory_id)
             VALUES ($1, $2, $3, $4, $5)`,
-                [newId, item.product_id, item.quantity, item.unit_price, factory_id]
+                [newId, item.product_id, normalizedQuantity, item.unit_price, factory_id]
             );
 
             // Deduct from product stock
             await client.query(
-                `UPDATE products SET current_stock = current_stock - $1 WHERE product_id = $2 AND factory_id = $3`,
-                [item.quantity, item.product_id, factory_id]
+                `UPDATE products
+                 SET current_stock = ROUND(current_stock - $1, 0)
+                 WHERE product_id = $2 AND factory_id = $3`,
+                [normalizedQuantity, item.product_id, factory_id]
             );
 
             // Log inventory OUT movement
@@ -146,11 +154,11 @@ const createInvoice = async (req, res) => {
                     movId,
                     invoiceDate,
                     item.product_id,
-                    item.quantity,
+                    normalizedQuantity,
                     invoiceNo,
                     `Auto-deducted on invoice ${invoiceNo}`,
                     item.unit_price,
-                    item.quantity * item.unit_price,
+                    normalizedQuantity * item.unit_price,
                     factory_id
                 ]
             );
@@ -225,7 +233,9 @@ const deleteInvoice = async (req, res) => {
         // Restore product stock and remove auto-generated inventory movements
         for (const item of itemsToRestore.rows) {
             await client.query(
-                `UPDATE products SET current_stock = current_stock + $1 WHERE product_id = $2 AND factory_id = $3`,
+                `UPDATE products
+                 SET current_stock = ROUND(current_stock + $1, 0)
+                 WHERE product_id = $2 AND factory_id = $3`,
                 [item.quantity, item.product_id, factory_id]
             );
             await client.query(

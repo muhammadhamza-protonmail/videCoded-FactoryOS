@@ -51,6 +51,15 @@ const createLog = async (req, res) => {
         if (!product_id || !material_id || !units_produced)
             return res.status(400).json({ error: 'product_id, material_id and units_produced are required' });
 
+        const parsedUnitsProduced = Number(units_produced);
+        if (!Number.isFinite(parsedUnitsProduced) || parsedUnitsProduced <= 0) {
+            return res.status(400).json({ error: 'units_produced must be a valid positive number' });
+        }
+        const normalizedUnitsProduced = Math.round(parsedUnitsProduced);
+        if (normalizedUnitsProduced <= 0) {
+            return res.status(400).json({ error: 'units_produced must round to at least 1' });
+        }
+
         await client.query('BEGIN');
 
         const countRes = await client.query(`SELECT COUNT(*) as cnt FROM production_logs`);
@@ -72,7 +81,7 @@ const createLog = async (req, res) => {
             [
                 newId, date || new Date().toISOString().split('T')[0], shift || 'day', 
                 machine_id || null, product_id, material_id, bags_consumed || 0, 
-                mat_cost || 0, units_produced, elec_units || 0, elec_cost || 0, 
+                mat_cost || 0, normalizedUnitsProduced, elec_units || 0, elec_cost || 0, 
                 shift_expense || 0, other_expense || 0, total_sale_value || 0, 
                 net_profit, remarks || null, factory_id
             ]
@@ -83,8 +92,10 @@ const createLog = async (req, res) => {
             [bags_consumed || 0, material_id, factory_id]
         );
         await client.query(
-            `UPDATE products SET current_stock = current_stock + $1 WHERE product_id = $2 AND factory_id = $3`,
-            [units_produced, product_id, factory_id]
+            `UPDATE products
+             SET current_stock = ROUND(current_stock + $1, 0)
+             WHERE product_id = $2 AND factory_id = $3`,
+            [normalizedUnitsProduced, product_id, factory_id]
         );
 
         const imCountRes = await client.query(`SELECT COUNT(*) as cnt FROM inventory_movements`);
@@ -98,7 +109,7 @@ const createLog = async (req, res) => {
         await client.query(
             `INSERT INTO inventory_movements (movement_id, date, type, item_type, item_id, quantity, notes, factory_id)
              VALUES ($1, $2, 'IN', 'product', $3, $4, $5, $6)`,
-            ['IM' + String(imCnt + 2).padStart(3, '0'), date, product_id, units_produced, `Production Log ${newId}`, factory_id]
+            ['IM' + String(imCnt + 2).padStart(3, '0'), date, product_id, normalizedUnitsProduced, `Production Log ${newId}`, factory_id]
         );
 
         await client.query('COMMIT');

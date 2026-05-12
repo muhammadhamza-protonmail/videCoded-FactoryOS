@@ -43,12 +43,24 @@ const addMovement = async (req, res) => {
         if (!type || !item_type || !item_id || !quantity)
             return res.status(400).json({ error: 'type, item_type, item_id and quantity are required' });
 
+        const parsedQuantity = Number(quantity);
+        if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+            return res.status(400).json({ error: 'Quantity must be a valid positive number' });
+        }
+
+        const normalizedQuantity = item_type === 'product'
+            ? Math.round(parsedQuantity)
+            : parsedQuantity;
+        if (item_type === 'product' && normalizedQuantity <= 0) {
+            return res.status(400).json({ error: 'Product quantity must round to at least 1' });
+        }
+
         await client.query('BEGIN');
 
         const parsedUnitPrice = unit_price ?? new_unit_price;
         const effectiveUnitPrice = parsedUnitPrice !== undefined && parsedUnitPrice !== null && parsedUnitPrice !== ''
             ? Number(parsedUnitPrice) : null;
-        const totalAmount = effectiveUnitPrice !== null ? Number(quantity) * effectiveUnitPrice : null;
+        const totalAmount = effectiveUnitPrice !== null ? normalizedQuantity * effectiveUnitPrice : null;
 
         const countRes = await client.query(`SELECT COUNT(*) as cnt FROM inventory_movements`);
         const cnt = Number(countRes.rows[0].cnt || countRes.rows[0]['COUNT(*)'] || 0);
@@ -62,7 +74,7 @@ const addMovement = async (req, res) => {
         RETURNING *`,
             [
                 newId, date || new Date().toISOString().split('T')[0], type, item_type, item_id,
-                quantity, unit || 'piece', reference || null, notes || null, effectiveUnitPrice, totalAmount, factory_id
+                normalizedQuantity, unit || 'piece', reference || null, notes || null, effectiveUnitPrice, totalAmount, factory_id
             ]
         );
 
@@ -75,7 +87,7 @@ const addMovement = async (req, res) => {
             await client.query(
                 `UPDATE raw_materials SET current_stock = current_stock ${type === 'IN' ? '+' : '-'} $1, cost_per_unit = COALESCE($2, cost_per_unit)
                  WHERE material_id = $3 AND factory_id = $4`,
-                [quantity, effectiveUnitPrice, item_id, factory_id]
+                [normalizedQuantity, effectiveUnitPrice, item_id, factory_id]
             );
         } else if (item_type === 'product') {
             const prod = await client.query(`SELECT * FROM products WHERE product_id = $1 AND factory_id = $2`, [item_id, factory_id]);
@@ -84,9 +96,11 @@ const addMovement = async (req, res) => {
                 return res.status(404).json({ error: 'Product not found' });
             }
             await client.query(
-                `UPDATE products SET current_stock = current_stock ${type === 'IN' ? '+' : '-'} $1, sale_price = COALESCE($2, sale_price)
+                `UPDATE products
+                 SET current_stock = ROUND(current_stock ${type === 'IN' ? '+' : '-'} $1, 0),
+                     sale_price = COALESCE($2, sale_price)
                  WHERE product_id = $3 AND factory_id = $4`,
-                [quantity, effectiveUnitPrice, item_id, factory_id]
+                [normalizedQuantity, effectiveUnitPrice, item_id, factory_id]
             );
         }
 

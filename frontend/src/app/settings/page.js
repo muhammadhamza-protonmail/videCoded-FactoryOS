@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Building2, Save, Cloud, Folder, CheckCircle2, HardDrive, Loader2 } from 'lucide-react';
+import { Building2, Save, Cloud, Folder, CheckCircle2, HardDrive, Loader2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../lib/config';
@@ -59,7 +59,7 @@ export default function SettingsPage() {
             const status = await window.desktopApp.invoke('google-auth-status');
             setCloudStatus(status);
             setFolderId(status.folderId);
-            setBackupDirectory(status.backupDirectory || '');
+            setBackupDirectory(status.effectiveBackupDirectory || status.backupDirectory || '');
         }
     };
 
@@ -80,14 +80,6 @@ export default function SettingsPage() {
         toast.loading('Opening Google Login...');
     };
 
-    const handleSaveFolder = () => {
-        if (!folderId) {
-            toast.error('Please enter a Folder ID');
-            return;
-        }
-        window.desktopApp.send('google-set-folder', folderId);
-    };
-
     const handleBackupNow = async () => {
         setBackupInProgress(true);
         const toastId = toast.loading('Creating backup...');
@@ -96,15 +88,25 @@ export default function SettingsPage() {
             toast.dismiss(toastId);
             if (result.error) {
                 toast.error(`Backup failed: ${result.error}`);
-            } else if (result.localSuccess && result.cloudSuccess) {
-                toast.success('✅ Backup saved locally & uploaded to Google Drive!');
-            } else if (result.localSuccess && result.cloudSkipped) {
-                toast.success('✅ Local backup created! (Google Drive not connected)');
-            } else if (result.localSuccess) {
-                toast('⚠️ Local backup done. Cloud sync failed — will retry automatically.', { icon: '🔄' });
-            } else {
-                toast.error('Backup failed. Check app logs.');
+                return;
             }
+
+            if (result.localSuccess) {
+                const localPathMsg = result.localBackupPath ? `\n${result.localBackupPath}` : '';
+                toast.success(`✅ Local backup saved.${localPathMsg}`, { duration: 5000 });
+            } else {
+                toast.error('❌ Local backup failed.');
+            }
+
+            if (result.cloudSuccess) {
+                toast.success('☁️ Google Drive sync completed.');
+            } else if (result.cloudSkipped) {
+                toast('ℹ️ Google Drive sync skipped (not connected).', { icon: 'ℹ️' });
+            } else if (result.localSuccess) {
+                toast('⚠️ Local backup done, but Drive sync failed. It will retry automatically.', { icon: '⚠️' });
+            }
+
+            await refreshCloudStatus();
         } catch (err) {
             toast.dismiss(toastId);
             toast.error('Backup failed unexpectedly.');
@@ -113,8 +115,17 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSaveBackupDir = () => {
-        window.desktopApp.send('google-set-backup-dir', backupDirectory);
+    const handleCopyValue = async (value, label) => {
+        if (!value) {
+            toast.error(`No ${label} available to copy`);
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(value);
+            toast.success(`${label} copied`);
+        } catch {
+            toast.error(`Could not copy ${label}`);
+        }
     };
 
     if (loading) return <div className="p-10 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
@@ -192,21 +203,24 @@ export default function SettingsPage() {
                                         <Folder size={16} className="text-gray-400" />
                                         Google Drive Folder ID
                                     </label>
-                                    <input 
-                                        type="text" 
-                                        value={folderId}
-                                        onChange={e => setFolderId(e.target.value)}
-                                        placeholder="Paste your Google Drive Folder ID here"
-                                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50"
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={folderId}
+                                            readOnly
+                                            className="flex-1 p-2 border border-gray-300 rounded-xl outline-none bg-gray-50 text-gray-700"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopyValue(folderId, 'Folder ID')}
+                                            className="px-3 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-600"
+                                            title="Copy Folder ID"
+                                        >
+                                            <Copy size={16} />
+                                        </button>
+                                    </div>
                                     <p className="text-[10px] text-gray-400 mt-1">Found in the URL of your Google Drive folder</p>
                                 </div>
-                                <button 
-                                    onClick={handleSaveFolder}
-                                    className="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 transition-colors"
-                                >
-                                    Save Folder ID
-                                </button>
                             </div>
 
                         </div>
@@ -239,23 +253,26 @@ export default function SettingsPage() {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Backup Directory
                             </label>
-                            <input
-                                type="text"
-                                value={backupDirectory}
-                                onChange={e => setBackupDirectory(e.target.value)}
-                                placeholder="Leave blank to use default AppData location"
-                                className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50"
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={backupDirectory}
+                                    readOnly
+                                    className="flex-1 p-2 border border-gray-300 rounded-xl outline-none bg-gray-50 text-gray-700"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopyValue(backupDirectory, 'Backup directory')}
+                                    className="px-3 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-600"
+                                    title="Copy Backup Directory"
+                                >
+                                    <Copy size={16} />
+                                </button>
+                            </div>
                             <p className="text-[10px] text-gray-400 mt-1">
                                 Current backups are saved in: {backupDirectory || 'Default AppData backup folder'}
                             </p>
                         </div>
-                        <button
-                            onClick={handleSaveBackupDir}
-                            className="w-full bg-slate-600 text-white py-2.5 rounded-xl font-medium hover:bg-slate-700 transition-colors"
-                        >
-                            Save Backup Directory
-                        </button>
                     </div>
 
                     {/* Backup Now Button */}

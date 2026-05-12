@@ -41,6 +41,28 @@ export default function ReportsPage() {
     const [selectedVendorId, setSelectedVendorId] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState('');
 
+    const applyQuickRange = (rangeKey) => {
+        const today = new Date();
+        const end = today.toISOString().split('T')[0];
+
+        if (rangeKey === 'all') {
+            setStartDate('');
+            setEndDate(end);
+            return;
+        }
+
+        const start = new Date(today);
+        if (rangeKey === '7d') start.setDate(start.getDate() - 6);
+        if (rangeKey === '15d') start.setDate(start.getDate() - 14);
+        if (rangeKey === '1m') start.setMonth(start.getMonth() - 1);
+        if (rangeKey === '3m') start.setMonth(start.getMonth() - 3);
+        if (rangeKey === '6m') start.setMonth(start.getMonth() - 6);
+        if (rangeKey === '1y') start.setFullYear(start.getFullYear() - 1);
+
+        setStartDate(start.toISOString().split('T')[0]);
+        setEndDate(end);
+    };
+
     // Fetch Initial Dashboard & Dropdown Data
     useEffect(() => {
         const fetchDashboardInfo = async () => {
@@ -606,6 +628,26 @@ export default function ReportsPage() {
                             className="bg-white border-none rounded-lg text-sm px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
+                </div>
+                <div className="w-full xl:w-auto flex flex-wrap gap-2">
+                    {[
+                        ['7d', 'Last 7 days'],
+                        ['15d', 'Last 15 days'],
+                        ['1m', 'Last month'],
+                        ['3m', 'Last 3 months'],
+                        ['6m', 'Last 6 months'],
+                        ['1y', 'Last year'],
+                        ['all', 'All data']
+                    ].map(([key, label]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            onClick={() => applyQuickRange(key)}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors"
+                        >
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
