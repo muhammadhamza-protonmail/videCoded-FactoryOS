@@ -11,10 +11,17 @@ export default function SettingsPage() {
     
     // Cloud Sync States
     const [isDesktop, setIsDesktop] = useState(false);
-    const [cloudStatus, setCloudStatus] = useState({ isConnected: false, folderId: '' });
+    const [cloudStatus, setCloudStatus] = useState({
+        isConnected: false,
+        folderId: '',
+        isUploadReady: false,
+        folderIdIsPlaceholder: true,
+        driveFolderName: 'FactoryOS Backups',
+    });
     const [folderId, setFolderId] = useState('');
     const [backupDirectory, setBackupDirectory] = useState('');
     const [backupInProgress, setBackupInProgress] = useState(false);
+    const [folderSetupInProgress, setFolderSetupInProgress] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -46,6 +53,11 @@ export default function SettingsPage() {
                 toast.dismiss();
                 toast.error(message || 'Google authentication failed');
             });
+
+            window.desktopApp.on('google-folder-setup-failed', (message) => {
+                toast.error(message || 'Could not create Google Drive backup folder. Tap "Set up folder" to retry.');
+                refreshCloudStatus();
+            });
             
             window.desktopApp.on('google-config-updated', () => {
                 toast.success('Backup folder updated!');
@@ -55,12 +67,20 @@ export default function SettingsPage() {
     }, []);
 
     const refreshCloudStatus = async () => {
-        if (window.desktopApp?.invoke) {
-            const status = await window.desktopApp.invoke('google-auth-status');
-            setCloudStatus(status);
-            setFolderId(status.folderId);
-            setBackupDirectory(status.effectiveBackupDirectory || status.backupDirectory || '');
+        if (!window.desktopApp?.invoke) return;
+
+        let status = await window.desktopApp.invoke('google-auth-status');
+
+        if (status.isConnected && status.folderIdIsPlaceholder) {
+            const ensured = await window.desktopApp.invoke('google-ensure-folder');
+            if (ensured?.success) {
+                status = await window.desktopApp.invoke('google-auth-status');
+            }
         }
+
+        setCloudStatus(status);
+        setFolderId(status.folderId || '');
+        setBackupDirectory(status.effectiveBackupDirectory || status.backupDirectory || '');
     };
 
     const handleSave = async (e) => {
@@ -78,6 +98,27 @@ export default function SettingsPage() {
     const handleConnectCloud = () => {
         window.desktopApp.send('google-auth-start');
         toast.loading('Opening Google Login...');
+    };
+
+    const handleEnsureDriveFolder = async () => {
+        if (!window.desktopApp?.invoke) return;
+        setFolderSetupInProgress(true);
+        const toastId = toast.loading('Setting up Google Drive folder...');
+        try {
+            const result = await window.desktopApp.invoke('google-ensure-folder');
+            toast.dismiss(toastId);
+            if (result?.success) {
+                toast.success('Backup folder is ready on Google Drive.');
+                await refreshCloudStatus();
+            } else {
+                toast.error(result?.error || 'Failed to set up backup folder');
+            }
+        } catch {
+            toast.dismiss(toastId);
+            toast.error('Failed to set up backup folder');
+        } finally {
+            setFolderSetupInProgress(false);
+        }
     };
 
     const handleBackupNow = async () => {
@@ -100,6 +141,8 @@ export default function SettingsPage() {
 
             if (result.cloudSuccess) {
                 toast.success('☁️ Google Drive sync completed.');
+            } else if (result.cloudNeedsFolder) {
+                toast('⚠️ Connected to Google Drive, but backup folder is not set up yet.', { icon: '⚠️' });
             } else if (result.cloudSkipped) {
                 toast('ℹ️ Google Drive sync skipped (not connected).', { icon: 'ℹ️' });
             } else if (result.localSuccess) {
@@ -131,7 +174,7 @@ export default function SettingsPage() {
     if (loading) return <div className="p-10 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
 
     return (
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             
             {/* Factory Profile Section */}
             <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-fit">
@@ -189,11 +232,17 @@ export default function SettingsPage() {
 
                     {cloudStatus.isConnected ? (
                         <div className="space-y-6">
-                            <div className="bg-green-50 p-4 rounded-2xl flex items-center gap-3 text-green-700">
+                            <div className={`p-4 rounded-2xl flex items-center gap-3 ${cloudStatus.isUploadReady ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>
                                 <CheckCircle2 size={24} />
                                 <div>
-                                    <p className="font-bold">Connected to Google Drive</p>
-                                    <p className="text-xs">Your personal account is linked.</p>
+                                    <p className="font-bold">
+                                        {cloudStatus.isUploadReady ? 'Ready for cloud backup' : 'Google account connected'}
+                                    </p>
+                                    <p className="text-xs">
+                                        {cloudStatus.isUploadReady
+                                            ? `Backups upload to "${cloudStatus.driveFolderName}" in your Drive.`
+                                            : 'Backup folder is still being set up. Use the button below if needed.'}
+                                    </p>
                                 </div>
                             </div>
 
@@ -201,25 +250,50 @@ export default function SettingsPage() {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
                                         <Folder size={16} className="text-gray-400" />
-                                        Google Drive Folder ID
+                                        Google Drive backup folder
                                     </label>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2">
                                         <input
                                             type="text"
-                                            value={folderId}
+                                            value={cloudStatus.isUploadReady ? folderId : 'Setting up folder...'}
                                             readOnly
-                                            className="flex-1 p-2 border border-gray-300 rounded-xl outline-none bg-gray-50 text-gray-700"
+                                            className="flex-1 min-w-0 p-2.5 border border-gray-300 rounded-xl outline-none bg-gray-50 text-gray-700 text-sm font-mono break-all"
                                         />
+                                        <div className="flex gap-2 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopyValue(folderId, 'Folder ID')}
+                                                disabled={!cloudStatus.isUploadReady}
+                                                className="px-3 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-600 disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                                title="Copy Folder ID"
+                                            >
+                                                <Copy size={16} />
+                                            </button>
+                                            {cloudStatus.isUploadReady && (
+                                                <a
+                                                    href={`https://drive.google.com/drive/folders/${folderId}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-3 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 min-h-[44px] flex items-center"
+                                                >
+                                                    Open
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {!cloudStatus.isUploadReady && (
                                         <button
                                             type="button"
-                                            onClick={() => handleCopyValue(folderId, 'Folder ID')}
-                                            className="px-3 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-600"
-                                            title="Copy Folder ID"
+                                            onClick={handleEnsureDriveFolder}
+                                            disabled={folderSetupInProgress}
+                                            className="mt-3 w-full sm:w-auto bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 min-h-[44px]"
                                         >
-                                            <Copy size={16} />
+                                            {folderSetupInProgress ? 'Setting up folder...' : 'Set up backup folder'}
                                         </button>
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">Found in the URL of your Google Drive folder</p>
+                                    )}
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Created automatically as &quot;{cloudStatus.driveFolderName}&quot; after you connect.
+                                    </p>
                                 </div>
                             </div>
 

@@ -9,13 +9,13 @@ contextBridge.exposeInMainWorld('desktopApp', {
         }
     },
     invoke: (channel, data) => {
-        const validChannels = ['google-auth-status', 'backup-now'];
+        const validChannels = ['google-auth-status', 'google-ensure-folder', 'backup-now'];
         if (validChannels.includes(channel)) {
             return ipcRenderer.invoke(channel, data);
         }
     },
     on: (channel, func) => {
-        const validChannels = ['google-auth-success', 'google-config-updated', 'google-auth-failed'];
+        const validChannels = ['google-auth-success', 'google-config-updated', 'google-auth-failed', 'google-folder-setup-failed'];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }

@@ -1,5 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import {
     getUsers, getUserById,
     createUser, updateUserPermissions,
@@ -8,7 +11,7 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import {
     UserCog, Plus, Edit2, Trash2,
-    Check, X, Shield, Eye, Key
+    Check, Shield, Eye, Key
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -35,22 +38,6 @@ const emptyPermissions = () => {
 };
 
 // ── Modal ──────────────────────────────────────────────────────
-function Modal({ title, onClose, children, wide }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto`}>
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-                    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="p-6">{children}</div>
-            </div>
-        </div>
-    );
-}
-
 // ── Permission Grid ────────────────────────────────────────────
 function PermissionGrid({ permissions, onChange, disabled }) {
     const toggle = (module, action) => {
@@ -269,20 +256,20 @@ export default function UsersPage() {
     return (
         <div className="space-y-6">
 
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Users</h1>
-                    <p className="text-gray-400 text-sm mt-1">Manage factory users and permissions</p>
-                </div>
-                <button
-                    onClick={() => { setForm(emptyForm); setPermissions(emptyPermissions()); setShowAdd(true); }}
-                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
-                >
-                    <Plus size={18} />
-                    Add User
-                </button>
-            </div>
+            <PageHeader
+                title="Users"
+                subtitle="Manage factory users and permissions"
+                action={(
+                    <button
+                        type="button"
+                        onClick={() => { setForm(emptyForm); setPermissions(emptyPermissions()); setShowAdd(true); }}
+                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm min-h-[44px]"
+                    >
+                        <Plus size={18} />
+                        Add User
+                    </button>
+                )}
+            />
 
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

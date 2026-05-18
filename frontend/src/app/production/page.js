@@ -1,5 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import {
     getProductionLogs, createProductionLog,
     updateProductionLog, getProducts,
@@ -7,7 +10,7 @@ import {
 } from '../../../lib/api';
 import {
     Factory, Plus, Search, Edit2,
-    Check, X, TrendingUp, Calendar
+    Check, TrendingUp, Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../../hooks/usePermissions';
@@ -16,22 +19,6 @@ import { usePermissions } from '../../../hooks/usePermissions';
 const ELEC_COST_PER_UNIT = 30;    // Rs 30 per unit produced
 
 // ── Modal ──────────────────────────────────────────────────────
-function Modal({ title, onClose, children, wide }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto`}>
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-                    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="p-6">{children}</div>
-            </div>
-        </div>
-    );
-}
-
 // ── Shift Badge ────────────────────────────────────────────────
 function ShiftBadge({ shift }) {
     const styles = {
@@ -280,22 +267,20 @@ export default function ProductionPage() {
     return (
         <div className="space-y-6">
 
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Production</h1>
-                    <p className="text-gray-400 text-sm mt-1">Daily production logs and shift management</p>
-                </div>
-                {can('production', 'add') && (
+            <PageHeader
+                title="Production"
+                subtitle="Daily production logs and shift management"
+                action={can('production', 'add') ? (
                     <button
+                        type="button"
                         onClick={() => { setForm(emptyForm); setShowAdd(true); }}
-                        className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm min-h-[44px]"
                     >
                         <Plus size={18} />
                         Add Production Log
                     </button>
-                )}
-            </div>
+                ) : null}
+            />
 
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -654,7 +639,7 @@ export default function ProductionPage() {
                     <InputField label="Other Expense (Rs)" type="number" value={form.other_expense} onChange={v => setForm({ ...form, other_expense: v })} placeholder="e.g. 500" />
                     <InputField label="Total Sale Value (Rs)" type="number" value={form.total_sale_value} onChange={v => setForm({ ...form, total_sale_value: v })} placeholder="e.g. 322000" />
                     <InputField label="Remarks" value={form.remarks} onChange={v => setForm({ ...form, remarks: v })} placeholder="Optional notes..." />
-                    <div className="flex gap-3 mt-2">
+                    <div className="form-actions">
                         <button
                             onClick={() => setShowEdit(false)}
                             className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"

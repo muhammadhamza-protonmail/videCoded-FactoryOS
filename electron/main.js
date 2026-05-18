@@ -22,7 +22,17 @@ function loadEnv() {
     return null;
 }
 
-const { createBackupNow, createBackupIfDue, syncWithCloud, isCloudSyncConfigured, ensurePlaceholderFiles, getBackupDirectory } = require('./backup');
+const {
+    createBackupNow,
+    createBackupIfDue,
+    syncWithCloud,
+    isCloudSyncConfigured,
+    ensurePlaceholderFiles,
+    getBackupDirectory,
+    ensureDriveBackupFolder,
+    isValidFolderId,
+    DRIVE_BACKUP_FOLDER_NAME,
+} = require('./backup');
 const logger = require('./logger');
 const { syncDefaultUsers } = require('./dbInit');
 
@@ -406,18 +416,27 @@ async function createWindow() {
     // Attempt cloud sync on startup and then periodically
     ensurePlaceholderFiles(userDataDir);
 
-    if (!isCloudSyncConfigured(userDataDir)) {
+    const googleAuthPath = path.join(userDataDir, 'google-auth.json');
+    if (fs.existsSync(googleAuthPath)) {
+        try {
+            await ensureDriveBackupFolder(userDataDir);
+        } catch (err) {
+            logger.error('Startup Google Drive folder setup failed', err);
+        }
+    }
+
+    if (!isCloudSyncConfigured(userDataDir) && !fs.existsSync(googleAuthPath)) {
         setTimeout(() => {
             if (mainWindow && !mainWindow.isDestroyed()) {
                 dialog.showMessageBox(mainWindow, {
                     type: 'info',
                     title: 'Google Drive Sync Not Configured',
                     message: 'Automatic cloud backup is currently disabled.',
-                    detail: 'To enable it, please replace the placeholder service-account.json and backup-config.json files in your AppData folder with your real Google Cloud credentials.',
+                    detail: 'Connect Google Drive in Factory Settings, or configure service-account.json and backup-config.json in your AppData folder.',
                     buttons: ['Got it']
                 });
             }
-        }, 5000); // Show after 5 seconds to not block startup
+        }, 5000);
     }
 
     syncWithCloud(backupDir, userDataDir);
@@ -506,7 +525,7 @@ ipcMain.handle('google-auth-status', async () => {
     const authPath = path.join(userDataDir, 'google-auth.json');
     const configPath = path.join(userDataDir, 'backup-config.json');
     
-    let isConnected = fs.existsSync(authPath);
+    const isConnected = fs.existsSync(authPath);
     let folderId = '';
     const effectiveBackupDirectory = getBackupDirectory(userDataDir);
     let backupDirectory = effectiveBackupDirectory;
@@ -520,8 +539,18 @@ ipcMain.handle('google-auth-status', async () => {
             }
         } catch {}
     }
+
+    const isUploadReady = isConnected && isValidFolderId(folderId);
     
-    return { isConnected, folderId, backupDirectory, effectiveBackupDirectory };
+    return {
+        isConnected,
+        folderId,
+        backupDirectory,
+        effectiveBackupDirectory,
+        isUploadReady,
+        folderIdIsPlaceholder: !isValidFolderId(folderId),
+        driveFolderName: DRIVE_BACKUP_FOLDER_NAME,
+    };
 });
 
 ipcMain.on('google-auth-start', async (event) => {
@@ -578,7 +607,14 @@ ipcMain.on('google-auth-start', async (event) => {
                 tokens
             }, null, 2));
 
-            logger.log('Google Drive connected successfully!');
+            try {
+                await ensureDriveBackupFolder(userDataDir);
+                logger.log('Google Drive connected and backup folder configured.');
+            } catch (folderErr) {
+                logger.error('Google Drive connected but backup folder setup failed', folderErr);
+                event.sender.send('google-folder-setup-failed', folderErr.message || 'Could not create backup folder');
+            }
+
             event.sender.send('google-auth-success');
         } catch (err) {
             logger.error('Failed to complete Google auth callback', err);
@@ -597,6 +633,17 @@ ipcMain.on('google-auth-start', async (event) => {
     server.listen(42813, '127.0.0.1');
 
     shell.openExternal(authUrl);
+});
+
+ipcMain.handle('google-ensure-folder', async () => {
+    const userDataDir = app.getPath('userData');
+    try {
+        const folderId = await ensureDriveBackupFolder(userDataDir);
+        return { success: true, folderId };
+    } catch (err) {
+        logger.error('google-ensure-folder failed', err);
+        return { success: false, error: err.message || 'Failed to set up backup folder' };
+    }
 });
 
 ipcMain.on('google-set-folder', async (event, folderId) => {
@@ -651,11 +698,19 @@ ipcMain.handle('backup-now', async () => {
 
     let cloudSuccess = false;
     let cloudSkipped = false;
+    let cloudNeedsFolder = false;
     try {
         if (isCloudSyncConfigured(userDataDir)) {
-            await syncWithCloud(backupDir, userDataDir);
-            cloudSuccess = true;
-            logger.log('Manual backup triggered: cloud sync completed.');
+            const cloudResult = await syncWithCloud(backupDir, userDataDir);
+            cloudSuccess = Boolean(cloudResult?.success && cloudResult?.uploadedCount > 0);
+            if (cloudResult?.reason === 'nothing_pending') {
+                cloudSuccess = true;
+            }
+            if (cloudResult?.success) {
+                logger.log('Manual backup triggered: cloud sync completed.');
+            }
+        } else if (fs.existsSync(path.join(userDataDir, 'google-auth.json'))) {
+            cloudNeedsFolder = true;
         } else {
             cloudSkipped = true;
         }
@@ -663,5 +718,5 @@ ipcMain.handle('backup-now', async () => {
         logger.error('Manual backup: cloud sync failed, will auto-retry later', err);
     }
 
-    return { localSuccess, cloudSuccess, cloudSkipped, localBackupPath, backupDir };
+    return { localSuccess, cloudSuccess, cloudSkipped, cloudNeedsFolder, localBackupPath, backupDir };
 });

@@ -1,27 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import { getProducts, createProduct, updateProduct, getRawMaterials } from '../../../lib/api';
-import { Package, Plus, Search, Edit2, AlertTriangle, Check, X, TrendingUp, TrendingDown } from 'lucide-react';
+import { Package, Plus, Search, Edit2, AlertTriangle, Check, TrendingUp, TrendingDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../../hooks/usePermissions';
 
 // ── Modal ──────────────────────────────────────────────────────
-function Modal({ title, onClose, children }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="p-6">{children}</div>
-            </div>
-        </div>
-    );
-}
-
 // ── Field ──────────────────────────────────────────────────────
 function Field({ label, type = 'text', value, onChange, placeholder, required, options }) {
     return (
@@ -189,22 +176,20 @@ export default function ProductsPage() {
     return (
         <div className="space-y-6">
 
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Products</h1>
-                    <p className="text-gray-400 text-sm mt-1">Manage finished goods and stock levels</p>
-                </div>
-                {can('products', 'add') && (
+            <PageHeader
+                title="Products"
+                subtitle="Manage finished goods and stock levels"
+                action={can('products', 'add') ? (
                     <button
+                        type="button"
                         onClick={() => { setForm(emptyForm); setShowAdd(true); }}
-                        className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm min-h-[44px]"
                     >
                         <Plus size={18} />
                         Add Product
                     </button>
-                )}
-            </div>
+                ) : null}
+            />
 
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -245,7 +230,7 @@ export default function ProductsPage() {
                             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="filter-scroll">
                         {['all', 'ok', 'low', 'out'].map(f => (
                             <button
                                 key={f}
@@ -391,7 +376,7 @@ export default function ProductsPage() {
                         Ratio: {Number(form.product_ratio_qty || 0).toLocaleString()} {form.unit} per {Number(form.rm_ratio_qty || 0).toLocaleString()} {materials.find(m => m.material_id === form.material_id)?.unit || 'unit'}
                     </p>
                     <Field label="Remarks" value={form.remarks} onChange={v => setForm({ ...form, remarks: v })} placeholder="Any additional info..." />
-                    <div className="flex gap-3 mt-2">
+                    <div className="form-actions">
                         <button
                             onClick={() => setShowAdd(false)}
                             className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
@@ -449,7 +434,7 @@ export default function ProductsPage() {
                     </p>
                     <Field label="Status" value={form.status} onChange={v => setForm({ ...form, status: v })} options={statusOptions} />
                     <Field label="Remarks" value={form.remarks} onChange={v => setForm({ ...form, remarks: v })} placeholder="Any additional info..." />
-                    <div className="flex gap-3 mt-2">
+                    <div className="form-actions">
                         <button
                             onClick={() => setShowEdit(false)}
                             className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"

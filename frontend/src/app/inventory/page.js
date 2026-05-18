@@ -1,33 +1,20 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import {
     getInventorySummary, getInventoryMovements, addInventoryMovement,
     getProducts, getRawMaterials
 } from '../../../lib/api';
 import {
     TrendingUp, TrendingDown, Plus, Search,
-    Check, X, Package, Warehouse, AlertTriangle
+    Check, Package, Warehouse, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../../hooks/usePermissions';
 
 // ── Modal ──────────────────────────────────────────────────────
-function Modal({ title, onClose, children }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
-                    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="p-6">{children}</div>
-            </div>
-        </div>
-    );
-}
-
 // ── Type Badge ─────────────────────────────────────────────────
 function TypeBadge({ type }) {
     return (
@@ -150,22 +137,20 @@ export default function InventoryPage() {
     return (
         <div className="space-y-6">
 
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Inventory</h1>
-                    <p className="text-gray-400 text-sm mt-1">Stock levels, movements and alerts</p>
-                </div>
-                {can('inventory', 'add') && (
+            <PageHeader
+                title="Inventory"
+                subtitle="Stock levels, movements and alerts"
+                action={can('inventory', 'add') ? (
                     <button
+                        type="button"
                         onClick={() => { setForm(emptyForm); setShowAdd(true); }}
-                        className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm min-h-[44px]"
                     >
                         <Plus size={18} />
                         Add Movement
                     </button>
-                )}
-            </div>
+                ) : null}
+            />
 
             {/* ── Summary Cards ── */}
             {summary && (
@@ -401,8 +386,8 @@ export default function InventoryPage() {
                                     className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                                 />
                             </div>
-                            <div className="flex gap-2">
-                                {['all', 'IN', 'OUT'].map(t => (
+                            <div className="filter-scroll">
+                        {['all', 'IN', 'OUT'].map(t => (
                                     <button
                                         key={t}
                                         onClick={() => setTypeFilter(t)}

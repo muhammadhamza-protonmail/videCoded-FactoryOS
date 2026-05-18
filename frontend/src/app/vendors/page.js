@@ -1,27 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import { getVendors, createVendor, updateVendor, deleteVendor } from '../../../lib/api';
-import { ShoppingCart, Plus, Search, Edit2, Trash2, Check, X } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Edit2, Trash2, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../../hooks/usePermissions';
 
 // ── Modal ──────────────────────────────────────────────────────
-function Modal({ title, onClose, children }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="p-6">{children}</div>
-            </div>
-        </div>
-    );
-}
-
 // ── Field ──────────────────────────────────────────────────────
 function Field({ label, type = 'text', value, onChange, placeholder, required, options }) {
     return (
@@ -55,8 +42,8 @@ function Field({ label, type = 'text', value, onChange, placeholder, required, o
 // ── Confirm Delete Modal ───────────────────────────────────────
 function ConfirmDelete({ vendor, onConfirm, onCancel }) {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="legacy-modal-overlay">
+            <div className="legacy-modal-shell p-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Trash2 size={22} className="text-red-600" />
                 </div>
@@ -64,20 +51,22 @@ function ConfirmDelete({ vendor, onConfirm, onCancel }) {
                 <p className="text-gray-500 text-sm text-center mb-6">
                     Are you sure you want to delete <strong>{vendor.name}</strong>? This cannot be undone.
                 </p>
-                <div className="flex gap-3">
+                <FormActions>
                     <button
+                        type="button"
                         onClick={onCancel}
-                        className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+                        className="border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
+                        type="button"
                         onClick={onConfirm}
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+                        className="bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
                     >
                         Yes, Delete
                     </button>
-                </div>
+                </FormActions>
             </div>
         </div>
     );
@@ -200,22 +189,20 @@ export default function VendorsPage() {
     return (
         <div className="space-y-6">
 
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Vendors</h1>
-                    <p className="text-gray-400 text-sm mt-1">Manage your raw material suppliers</p>
-                </div>
-                {can('vendors', 'add') && (
+            <PageHeader
+                title="Vendors"
+                subtitle="Manage your raw material suppliers"
+                action={can('vendors', 'add') ? (
                     <button
+                        type="button"
                         onClick={() => { setForm(emptyForm); setShowAdd(true); }}
-                        className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm min-h-[44px]"
                     >
                         <Plus size={18} />
                         Add Vendor
                     </button>
-                )}
-            </div>
+                ) : null}
+            />
 
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -344,7 +331,7 @@ export default function VendorsPage() {
                     <Field label="Address" value={form.address} onChange={v => setForm({ ...form, address: v })} placeholder="e.g. Karachi" />
                     <Field label="Payment Terms" value={form.payment_terms} onChange={v => setForm({ ...form, payment_terms: v })} options={paymentTermsOptions} />
                     <Field label="Remarks" value={form.remarks} onChange={v => setForm({ ...form, remarks: v })} placeholder="Any additional info..." />
-                    <div className="flex gap-3 mt-2">
+                    <div className="form-actions">
                         <button
                             onClick={() => setShowAdd(false)}
                             className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
@@ -371,7 +358,7 @@ export default function VendorsPage() {
                     <Field label="Payment Terms" value={form.payment_terms} onChange={v => setForm({ ...form, payment_terms: v })} options={paymentTermsOptions} />
                     <Field label="Current Payable (Rs)" value={form.current_payable || ''} onChange={v => setForm({ ...form, current_payable: v })} placeholder="e.g. 45000" type="number" />
                     <Field label="Remarks" value={form.remarks} onChange={v => setForm({ ...form, remarks: v })} placeholder="Any additional info..." />
-                    <div className="flex gap-3 mt-2">
+                    <div className="form-actions">
                         <button
                             onClick={() => setShowEdit(false)}
                             className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"

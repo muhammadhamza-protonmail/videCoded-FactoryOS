@@ -61,8 +61,8 @@ export default function AppLayout({ children }) {
 
     // Super admin pages — full-screen dark background with centered content
     if (isSuperAdminPage) return (
-        <div className="min-h-screen bg-slate-100">
-            <div className="max-w-7xl mx-auto p-6">
+        <div className="min-h-[100dvh] bg-slate-100">
+            <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
                 {children}
             </div>
         </div>

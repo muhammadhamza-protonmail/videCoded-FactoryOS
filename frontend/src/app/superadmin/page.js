@@ -1,9 +1,12 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import {
     Shield, Building2, Users, Database, Settings,
     LogOut, Upload, Image as ImageIcon, Plus, Trash2,
-    Edit2, Key, Check, X, RefreshCw
+    Edit2, Key, Check, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -27,20 +30,6 @@ function Badge({ label, color = 'gray' }) {
         gray: 'bg-gray-100 text-gray-600',
     };
     return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${map[color]}`}>{label}</span>;
-}
-
-function Modal({ title, onClose, children }) {
-    return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white">
-                    <h2 className="font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-                </div>
-                <div className="p-5">{children}</div>
-            </div>
-        </div>
-    );
 }
 
 // ─── Main Component ─────────────────────────────────────────────
@@ -395,7 +384,7 @@ export default function SuperadminDashboard() {
                             <textarea value={factoryForm.address} onChange={e => setFactoryForm(f => ({ ...f, address: e.target.value }))}
                                 className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none h-20" />
                         </div>
-                        <div className="flex gap-3 pt-2">
+                        <div className="form-actions pt-2">
                             <button onClick={() => setShowAddFactory(false)} className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
                             <button onClick={handleAddFactory} className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2">
                                 <Check size={16} /> Create
@@ -437,7 +426,7 @@ export default function SuperadminDashboard() {
                                 {factories.map(f => <option key={f.factory_id} value={f.factory_id}>{f.name}</option>)}
                             </select>
                         </div>
-                        <div className="flex gap-3 pt-2">
+                        <div className="form-actions pt-2">
                             <button onClick={() => setShowAddUser(false)} className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
                             <button onClick={handleAddUser} className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2">
                                 <Check size={16} /> Create

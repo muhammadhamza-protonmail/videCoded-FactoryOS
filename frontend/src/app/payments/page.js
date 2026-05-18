@@ -1,5 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Modal from '../../../components/Modal';
+import FormActions from '../../../components/FormActions';
+import PageHeader from '../../../components/PageHeader';
 import {
     getPayments, createPayment,
     getInvoices, getCustomers,
@@ -8,29 +11,13 @@ import {
 } from '../../../lib/api';
 import {
     CreditCard, Plus, Search,
-    Check, X, Eye, Filter, Link,
+    Check, Eye, Filter, Link,
     AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../../hooks/usePermissions';
 
 // ── Modal ──────────────────────────────────────────────────────
-function Modal({ title, onClose, children, wide }) {
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto`}>
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-                    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="p-6">{children}</div>
-            </div>
-        </div>
-    );
-}
-
 // ── Method Badge ───────────────────────────────────────────────
 function MethodBadge({ method }) {
     const styles = {
@@ -240,22 +227,20 @@ export default function PaymentsPage() {
     return (
         <div className="space-y-6">
 
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Payments</h1>
-                    <p className="text-gray-400 text-sm mt-1">Record and track customer payments</p>
-                </div>
-                {can('payments', 'add') && (
+            <PageHeader
+                title="Payments"
+                subtitle="Record and track customer payments"
+                action={can('payments', 'add') ? (
                     <button
+                        type="button"
                         onClick={() => { setForm(emptyForm); setCustomerInvoices([]); setSelectedInvoice(null); setShowAdd(true); }}
-                        className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm min-h-[44px]"
                     >
                         <Plus size={18} />
                         Record Payment
                     </button>
-                )}
-            </div>
+                ) : null}
+            />
 
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -294,7 +279,7 @@ export default function PaymentsPage() {
                             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="filter-scroll">
                         {['all', 'cash', 'bank_transfer', 'cheque'].map(m => (
                             <button
                                 key={m}
@@ -558,7 +543,7 @@ export default function PaymentsPage() {
                         </>
                     )}
 
-                    <div className="flex gap-3 mt-2">
+                    <div className="form-actions">
                         <button
                             onClick={() => setShowAdd(false)}
                             className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"

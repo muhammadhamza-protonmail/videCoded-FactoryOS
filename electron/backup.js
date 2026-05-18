@@ -10,6 +10,8 @@ const CLOUD_SYNC_FILE = 'cloud-sync.json';
 const SERVICE_ACCOUNT_FILE = 'service-account.json';
 const BACKUP_CONFIG_FILE = 'backup-config.json';
 const GOOGLE_AUTH_FILE = 'google-auth.json';
+const PLACEHOLDER_FOLDER_ID = 'PASTE_YOUR_FOLDER_ID_HERE';
+const DRIVE_BACKUP_FOLDER_NAME = 'FactoryOS Backups';
 
 function ensureDirectory(dirPath) {
     if (!fs.existsSync(dirPath)) {
@@ -108,21 +110,97 @@ function createBackupIfDue(dbPath, backupDir) {
     return createBackupNow(dbPath, backupDir);
 }
 
+function isValidFolderId(folderId) {
+    return Boolean(
+        folderId &&
+        String(folderId).trim() &&
+        folderId !== PLACEHOLDER_FOLDER_ID
+    );
+}
+
+function readBackupConfig(userDataDir) {
+    const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
+    if (!fs.existsSync(configPath)) return {};
+    try {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch {
+        return {};
+    }
+}
+
+function writeBackupConfig(userDataDir, config) {
+    const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+}
+
+function getOAuthDriveClient(userDataDir) {
+    const authPath = path.join(userDataDir, GOOGLE_AUTH_FILE);
+    if (!fs.existsSync(authPath)) {
+        throw new Error('Google Drive is not connected');
+    }
+
+    const authData = JSON.parse(fs.readFileSync(authPath, 'utf8'));
+    const oauth2Client = new google.auth.OAuth2(
+        authData.clientId,
+        authData.clientSecret,
+        'http://127.0.0.1:42813'
+    );
+    oauth2Client.setCredentials(authData.tokens);
+    return google.drive({ version: 'v3', auth: oauth2Client });
+}
+
+async function ensureDriveBackupFolder(userDataDir) {
+    const config = readBackupConfig(userDataDir);
+    if (isValidFolderId(config.googleDriveFolderId)) {
+        return config.googleDriveFolderId;
+    }
+
+    const drive = getOAuthDriveClient(userDataDir);
+    const escapedName = DRIVE_BACKUP_FOLDER_NAME.replace(/'/g, "\\'");
+    const searchRes = await drive.files.list({
+        q: `mimeType='application/vnd.google-apps.folder' and name='${escapedName}' and trashed=false`,
+        fields: 'files(id, name)',
+        spaces: 'drive',
+        pageSize: 1,
+    });
+
+    let folderId;
+    if (searchRes.data.files?.length) {
+        folderId = searchRes.data.files[0].id;
+    } else {
+        const createRes = await drive.files.create({
+            requestBody: {
+                name: DRIVE_BACKUP_FOLDER_NAME,
+                mimeType: 'application/vnd.google-apps.folder',
+            },
+            fields: 'id',
+        });
+        folderId = createRes.data.id;
+    }
+
+    config.googleDriveFolderId = folderId;
+    if (!Object.prototype.hasOwnProperty.call(config, 'backupDirectory')) {
+        config.backupDirectory = '';
+    }
+    writeBackupConfig(userDataDir, config);
+    logger.log(`Google Drive backup folder ready: ${folderId}`);
+    return folderId;
+}
+
 function isCloudSyncConfigured(userDataDir) {
     const authPath = path.join(userDataDir, GOOGLE_AUTH_FILE);
     const serviceAccountPath = path.join(userDataDir, SERVICE_ACCOUNT_FILE);
-    const configPath = path.join(userDataDir, BACKUP_CONFIG_FILE);
+    const config = readBackupConfig(userDataDir);
 
-    // Prefer OAuth2
-    if (fs.existsSync(authPath)) return true;
+    if (fs.existsSync(authPath)) {
+        return isValidFolderId(config.googleDriveFolderId);
+    }
 
-    // Fallback to Service Account
     if (fs.existsSync(serviceAccountPath)) {
         try {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            if (config.googleDriveFolderId && config.googleDriveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
+            if (isValidFolderId(config.googleDriveFolderId)) {
                 const sa = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-                if (sa.client_email && !sa.client_email.includes("YOUR_SERVICE_ACCOUNT_EMAIL")) {
+                if (sa.client_email && !sa.client_email.includes('YOUR_SERVICE_ACCOUNT_EMAIL')) {
                     return true;
                 }
             }
@@ -216,9 +294,9 @@ async function syncWithCloud(backupDir, userDataDir) {
         }
     }
 
-    if (!auth || !folderId) {
+    if (!auth || !isValidFolderId(folderId)) {
         logger.log('Cloud sync skipped: No valid authentication or folder ID found.');
-        return;
+        return { success: false, uploadedCount: 0, reason: 'not_configured' };
     }
 
     const syncStatus = readCloudSyncStatus(backupDir);
@@ -238,7 +316,11 @@ async function syncWithCloud(backupDir, userDataDir) {
         .filter(name => syncStatus[name].status === 'pending')
         .sort((a, b) => syncStatus[b].createdAt - syncStatus[a].createdAt);
 
-    if (pendingFiles.length === 0) return;
+    if (pendingFiles.length === 0) {
+        return { success: true, uploadedCount: 0, reason: 'nothing_pending' };
+    }
+
+    let uploadedCount = 0;
 
     try {
         const drive = google.drive({ version: 'v3', auth });
@@ -264,6 +346,7 @@ async function syncWithCloud(backupDir, userDataDir) {
                 syncStatus[fileName].status = 'synced';
                 syncStatus[fileName].syncedAt = Date.now();
                 writeCloudSyncStatus(backupDir, syncStatus);
+                uploadedCount += 1;
                 logger.log(`Successfully uploaded: ${fileName}`);
             } catch (err) {
                 logger.error(`Upload failed for ${fileName}`, err);
@@ -271,7 +354,14 @@ async function syncWithCloud(backupDir, userDataDir) {
         }
     } catch (error) {
         logger.error('Cloud Sync Connection Error', error);
+        return { success: false, uploadedCount, reason: 'connection_error' };
     }
+
+    return {
+        success: uploadedCount > 0 || pendingFiles.length === 0,
+        uploadedCount,
+        reason: uploadedCount > 0 ? 'uploaded' : 'upload_failed',
+    };
 }
 
 module.exports = {
@@ -280,5 +370,8 @@ module.exports = {
     syncWithCloud,
     isCloudSyncConfigured,
     ensurePlaceholderFiles,
-    getBackupDirectory
+    getBackupDirectory,
+    ensureDriveBackupFolder,
+    isValidFolderId,
+    DRIVE_BACKUP_FOLDER_NAME,
 };
