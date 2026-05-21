@@ -1,0 +1,9 @@
+{
+  "appId": "com.factoryos.mobile",
+  "appName": "FactoryOS",
+  "webDir": "frontend/out",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

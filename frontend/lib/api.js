@@ -1,19 +1,18 @@
 import axios from 'axios';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getRuntimeApiBaseUrl } from './config';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
     headers: { 'Content-Type': 'application/json' },
 });
 
-// Auto attach token to every request
 api.interceptors.request.use((config) => {
+    config.baseURL = getRuntimeApiBaseUrl();
     const token = localStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
 });
 
-// Auto redirect to login if 401
 api.interceptors.response.use(
     response => response,
     error => {
@@ -27,66 +26,57 @@ api.interceptors.response.use(
     }
 );
 
-// ── Auth ───────────────────────────────────────────────────────
+const request = (method, path, data) => api[method](path, data);
+
 export const loginUser = (data) => api.post('/auth/login', data);
-export const logoutUser = () => api.post('/auth/logout');
-export const getMe = () => api.get('/auth/me');
+export const logoutUser = () => request('post', '/auth/logout');
+export const getMe = () => request('get', '/auth/me');
 
-// ── Users ──────────────────────────────────────────────────────
-export const getUsers = () => api.get('/users');
-export const getUserById = (id) => api.get(`/users/${id}`);
-export const createUser = (data) => api.post('/users', data);
-export const updateUserPermissions = (id, data) => api.put(`/users/${id}`, data);
-export const deleteUser = (id) => api.delete(`/users/${id}`);
-export const resetUserPassword = (id, data) => api.put(`/users/${id}/reset-password`, data);
+export const getUsers = () => request('get', '/users');
+export const getUserById = (id) => request('get', `/users/${id}`);
+export const createUser = (data) => request('post', '/users', data);
+export const updateUserPermissions = (id, data) => request('put', `/users/${id}`, data);
+export const deleteUser = (id) => request('delete', `/users/${id}`);
+export const resetUserPassword = (id, data) => request('put', `/users/${id}/reset-password`, data);
 
-// ── Customers ──────────────────────────────────────────────────
-export const getCustomers = () => api.get('/customers');
-export const getCustomerById = (id) => api.get(`/customers/${id}`);
-export const getCustomerLedger = (id) => api.get(`/customers/${id}/ledger`);
-export const createCustomer = (data) => api.post('/customers', data);
-export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
+export const getCustomers = () => request('get', '/customers');
+export const getCustomerById = (id) => request('get', `/customers/${id}`);
+export const getCustomerLedger = (id) => request('get', `/customers/${id}/ledger`);
+export const createCustomer = (data) => request('post', '/customers', data);
+export const updateCustomer = (id, data) => request('put', `/customers/${id}`, data);
 
-// ── Products ───────────────────────────────────────────────────
-export const getProducts = () => api.get('/products');
-export const getProductById = (id) => api.get(`/products/${id}`);
-export const getLowStockProducts = () => api.get('/products/lowstock');
-export const createProduct = (data) => api.post('/products', data);
-export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
+export const getProducts = () => request('get', '/products');
+export const getProductById = (id) => request('get', `/products/${id}`);
+export const getLowStockProducts = () => request('get', '/products/lowstock');
+export const createProduct = (data) => request('post', '/products', data);
+export const updateProduct = (id, data) => request('put', `/products/${id}`, data);
 
-// ── Vendors ────────────────────────────────────────────────────
-export const getVendors = () => api.get('/vendors');
-export const createVendor = (data) => api.post('/vendors', data);
-export const updateVendor = (id, data) => api.put(`/vendors/${id}`, data);
-export const deleteVendor = (id) => api.delete(`/vendors/${id}`);
+export const getVendors = () => request('get', '/vendors');
+export const createVendor = (data) => request('post', '/vendors', data);
+export const updateVendor = (id, data) => request('put', `/vendors/${id}`, data);
+export const deleteVendor = (id) => request('delete', `/vendors/${id}`);
 
-// ── Raw Materials ──────────────────────────────────────────────
-export const getRawMaterials = () => api.get('/rawmaterials');
-export const getLowStockMats = () => api.get('/rawmaterials/lowstock');
-export const createRawMaterial = (data) => api.post('/rawmaterials', data);
-export const updateRawMaterial = (id, data) => api.put(`/rawmaterials/${id}`, data);
+export const getRawMaterials = () => request('get', '/rawmaterials');
+export const getLowStockMats = () => request('get', '/rawmaterials/lowstock');
+export const createRawMaterial = (data) => request('post', '/rawmaterials', data);
+export const updateRawMaterial = (id, data) => request('put', `/rawmaterials/${id}`, data);
 
-// ── Invoices ───────────────────────────────────────────────────
-export const getInvoices = () => api.get('/invoices');
-export const getInvoiceById = (id) => api.get(`/invoices/${id}`);
-export const createInvoice = (data) => api.post('/invoices', data);
-export const updateInvoice = (id, data) => api.put(`/invoices/${id}`, data);
+export const getInvoices = () => request('get', '/invoices');
+export const getInvoiceById = (id) => request('get', `/invoices/${id}`);
+export const createInvoice = (data) => request('post', '/invoices', data);
+export const updateInvoice = (id, data) => request('put', `/invoices/${id}`, data);
 
-// ── Payments ───────────────────────────────────────────────────
-export const getPayments = () => api.get('/payments');
-export const getPaymentsByInvoice = (id) => api.get(`/payments/invoice/${id}`);
-export const getPaymentsByCustomer = (id) => api.get(`/payments/customer/${id}`);
-export const createPayment = (data) => api.post('/payments', data);
-export const allocatePayment = (data) => api.post('/payments/allocate', data);
+export const getPayments = () => request('get', '/payments');
+export const getPaymentsByInvoice = (id) => request('get', `/payments/invoice/${id}`);
+export const getPaymentsByCustomer = (id) => request('get', `/payments/customer/${id}`);
+export const createPayment = (data) => request('post', '/payments', data);
+export const allocatePayment = (data) => request('post', '/payments/allocate', data);
 
-// ── Production ─────────────────────────────────────────────────
-export const getProductionLogs = () => api.get('/production');
-export const getDailySummary = (date) => api.get(`/production/summary?date=${date}`);
-export const createProductionLog = (data) => api.post('/production', data);
-export const updateProductionLog = (id, data) => api.put(`/production/${id}`, data);
+export const getProductionLogs = () => request('get', '/production');
+export const getDailySummary = (date) => request('get', `/production/summary?date=${date}`);
+export const createProductionLog = (data) => request('post', '/production', data);
+export const updateProductionLog = (id, data) => request('put', `/production/${id}`, data);
 
-// ── Inventory ──────────────────────────────────────────────────
-export const getInventorySummary = () => api.get('/inventory/summary');
-export const getInventoryMovements = () => api.get('/inventory');
-export const addInventoryMovement = (data) => api.post('/inventory', data);
-
+export const getInventorySummary = () => request('get', '/inventory/summary');
+export const getInventoryMovements = () => request('get', '/inventory');
+export const addInventoryMovement = (data) => request('post', '/inventory', data);

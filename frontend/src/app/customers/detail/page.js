@@ -1,18 +1,24 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getCustomerLedger } from '../../../../lib/api';
 import { ArrowLeft, TrendingUp, TrendingDown, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
-export default function CustomerLedgerPage() {
-    const { id } = useParams();
+function CustomerLedgerContent() {
+    const searchParams = useSearchParams();
+    const id = searchParams.get('id');
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetch = async () => {
+        const fetchLedger = async () => {
+            if (!id) {
+                setLoading(false);
+                return;
+            }
+
             try {
                 const res = await getCustomerLedger(id);
                 setData(res.data);
@@ -22,7 +28,7 @@ export default function CustomerLedgerPage() {
                 setLoading(false);
             }
         };
-        fetch();
+        fetchLedger();
     }, [id]);
 
     if (loading) return (
@@ -39,8 +45,6 @@ export default function CustomerLedgerPage() {
 
     return (
         <div className="space-y-6">
-
-            {/* ── Header ── */}
             <div className="flex items-center gap-4">
                 <Link href="/customers">
                     <button className="w-9 h-9 bg-white border border-gray-200 rounded-xl flex items-center justify-center hover:bg-gray-50 transition-colors">
@@ -49,11 +53,10 @@ export default function CustomerLedgerPage() {
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800">{customer.name}</h1>
-                    <p className="text-gray-400 text-sm">{customer.phone} · {customer.address}</p>
+                    <p className="text-gray-400 text-sm">{customer.phone} - {customer.address}</p>
                 </div>
             </div>
 
-            {/* ── Customer Stats ── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-blue-50 rounded-2xl p-5">
                     <p className="text-xs text-blue-600 font-medium uppercase tracking-wider mb-2">Credit Limit</p>
@@ -75,7 +78,6 @@ export default function CustomerLedgerPage() {
                 </div>
             </div>
 
-            {/* ── Ledger Table ── */}
             <div className="table-panel bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="p-4 sm:p-6 border-b border-gray-100 shrink-0">
                     <h2 className="font-semibold text-gray-800">Account Ledger</h2>
@@ -105,9 +107,9 @@ export default function CustomerLedgerPage() {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
                                             <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${entry.type === 'invoice'
-                                                    ? 'bg-red-50'
-                                                    : 'bg-green-50'
-                                                }`}>
+                                                ? 'bg-red-50'
+                                                : 'bg-green-50'
+                                            }`}>
                                                 {entry.type === 'invoice'
                                                     ? <TrendingUp size={14} className="text-red-500" />
                                                     : <TrendingDown size={14} className="text-green-500" />
@@ -122,7 +124,7 @@ export default function CustomerLedgerPage() {
                                                 {Number(entry.debit).toLocaleString()}
                                             </span>
                                         ) : (
-                                            <span className="text-gray-300 text-sm">—</span>
+                                            <span className="text-gray-300 text-sm">-</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
@@ -131,14 +133,14 @@ export default function CustomerLedgerPage() {
                                                 {Number(entry.credit).toLocaleString()}
                                             </span>
                                         ) : (
-                                            <span className="text-gray-300 text-sm">—</span>
+                                            <span className="text-gray-300 text-sm">-</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <span className={`text-sm font-bold ${Number(entry.running_balance) > 0
-                                                ? 'text-red-600'
-                                                : 'text-green-600'
-                                            }`}>
+                                            ? 'text-red-600'
+                                            : 'text-green-600'
+                                        }`}>
                                             {Number(entry.running_balance).toLocaleString()}
                                         </span>
                                     </td>
@@ -156,13 +158,11 @@ export default function CustomerLedgerPage() {
                     </table>
                 </div>
 
-                {/* ── Balance Footer ── */}
                 {ledger.length > 0 && (
                     <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
                         <div className="text-right">
                             <p className="text-sm text-gray-500">Closing Balance</p>
-                            <p className={`text-2xl font-bold ${Number(balance_due) > 0 ? 'text-red-600' : 'text-green-600'
-                                }`}>
+                            <p className={`text-2xl font-bold ${Number(balance_due) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                                 Rs {Number(balance_due).toLocaleString()}
                             </p>
                         </div>
@@ -170,5 +170,17 @@ export default function CustomerLedgerPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function CustomerLedgerPage() {
+    return (
+        <Suspense fallback={(
+            <div className="flex items-center justify-center h-64">
+                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        )}>
+            <CustomerLedgerContent />
+        </Suspense>
     );
 }

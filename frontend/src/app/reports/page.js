@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { savePdfDocument } from '../../../lib/mobile/files';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -347,8 +348,8 @@ export default function ReportsPage() {
                 });
                 
                 addFooter(doc);
-                doc.save(`Profit_and_Loss_${new Date().toISOString().split('T')[0]}.pdf`);
-                toast.success('P&L Statement downloaded!');
+                const result = await savePdfDocument(doc, `Profit_and_Loss_${new Date().toISOString().split('T')[0]}.pdf`);
+                toast.success(result.message);
                 setDownloadingId(null);
                 return;
             }
@@ -538,8 +539,8 @@ export default function ReportsPage() {
                 });
 
                 addFooter(doc);
-                doc.save(`Grand_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-                toast.success('Grand Business Report downloaded!');
+                const result = await savePdfDocument(doc, `Grand_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+                toast.success(result.message);
                 setDownloadingId(null);
                 return;
             }
@@ -572,8 +573,8 @@ export default function ReportsPage() {
             });
 
             addFooter(doc);
-            doc.save(`${type}_report_${new Date().toISOString().split('T')[0]}.pdf`);
-            toast.success(`${title} downloaded!`);
+            const result = await savePdfDocument(doc, `${type}_report_${new Date().toISOString().split('T')[0]}.pdf`);
+            toast.success(result.message);
         } catch (err) {
             console.error(err);
             toast.error('Failed to generate report');

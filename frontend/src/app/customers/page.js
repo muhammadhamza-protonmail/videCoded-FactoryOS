@@ -233,7 +233,7 @@ export default function CustomersPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
-                                            <Link href={`/customers/${customer.customer_id}`}>
+                                            <Link href={`/customers/detail?id=${customer.customer_id}`}>
                                                 <button className="w-8 h-8 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center transition-colors">
                                                     <Eye size={14} />
                                                 </button>

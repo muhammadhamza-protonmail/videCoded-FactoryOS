@@ -189,7 +189,7 @@ export default function PaymentsPage() {
         const unpaid = invoices.filter(i =>
             i.customer_id === payment.customer_id &&
             i.status !== 'paid' &&
-            Number(i.balance_due) >= Number(payment.amount)
+            Number(i.balance_due) > 0
         );
         setCustomerInvoices(unpaid);
         setAllocatingPayment(payment);
@@ -406,15 +406,13 @@ export default function PaymentsPage() {
                             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="">-- Select Customer --</option>
-                            {customers.filter(c => Number(c.balance_due) > 0).map(c => (
+                            {customers.map(c => (
                                 <option key={c.customer_id} value={c.customer_id}>
-                                    {c.name} — Due: Rs {Number(c.balance_due).toLocaleString()}
+                                    {c.name} — {Number(c.balance_due) < 0 ? 'Advance' : 'Due'}: Rs {Math.abs(Number(c.balance_due || 0)).toLocaleString()}
                                 </option>
                             ))}
                         </select>
-                        {customers.filter(c => Number(c.balance_due) > 0).length === 0 && (
-                            <p className="text-xs text-green-600 mt-1">✅ All customers have zero balance!</p>
-                        )}
+                        <p className="text-xs text-gray-500 mt-1">Payments can be linked to an invoice or saved as customer advance.</p>
                     </div>
 
                     {/* Step 2 — Select Invoice (Optional) */}
@@ -606,7 +604,7 @@ export default function PaymentsPage() {
                         ) : (
                             <div className="text-center py-6 bg-gray-50 rounded-2xl">
                                 <AlertCircle size={32} className="mx-auto text-gray-300 mb-2" />
-                                <p className="text-sm text-gray-500">No unpaid invoices found that can accommodate this payment amount.</p>
+                                <p className="text-sm text-gray-500">No unpaid or partial invoices found for this customer.</p>
                             </div>
                         )}
                     </div>
@@ -638,8 +636,8 @@ export default function PaymentsPage() {
                             <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
                     ) : ledgerData ? (
-                        <div className="space-y-4">
-                            <div className="bg-gray-50 rounded-xl p-4 flex justify-between">
+                        <div className="space-y-4 overflow-x-auto">
+                            <div className="bg-gray-50 rounded-xl p-4 flex justify-between min-w-[520px]">
                                 <div>
                                     <p className="font-semibold text-gray-800">{ledgerData.customer?.name}</p>
                                     <p className="text-xs text-gray-400 mt-1">{ledgerData.payment_count} payments recorded</p>
@@ -652,7 +650,7 @@ export default function PaymentsPage() {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-2 min-w-[560px]">
                                 {ledgerData.payments?.map(pay => (
                                     <div key={pay.payment_id} className="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3">
                                         <div>

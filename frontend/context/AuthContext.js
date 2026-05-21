@@ -9,16 +9,28 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        try {
-            const savedUser = localStorage.getItem('user');
-            const savedPerms = localStorage.getItem('permissions');
-            if (savedUser) setUser(JSON.parse(savedUser));
-            if (savedPerms) setPermissions(JSON.parse(savedPerms));
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+        let active = true;
+
+        const boot = async () => {
+            try {
+                if (!active) return;
+
+                const savedUser = localStorage.getItem('user');
+                const savedPerms = localStorage.getItem('permissions');
+                if (savedUser) setUser(JSON.parse(savedUser));
+                if (savedPerms) setPermissions(JSON.parse(savedPerms));
+            } catch (err) {
+                console.error('App initialization failed', err);
+            } finally {
+                if (active) setLoading(false);
+            }
+        };
+
+        boot();
+
+        return () => {
+            active = false;
+        };
     }, []);
 
     const login = (userData, perms, token) => {

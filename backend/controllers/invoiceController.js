@@ -101,20 +101,25 @@ const createInvoice = async (req, res) => {
             totalAmount += item.quantity * item.unit_price;
         }
 
-        const newBalance = Number(customer.rows[0].balance_due) + totalAmount;
+        const currentCustomerBalance = Number(customer.rows[0].balance_due || 0);
+        const newBalance = currentCustomerBalance + totalAmount;
         if (Number(customer.rows[0].credit_limit) > 0 && newBalance > Number(customer.rows[0].credit_limit)) {
             await client.query('ROLLBACK');
             return res.status(400).json({ error: `Credit limit exceeded!` });
         }
 
         const invoiceDate = date || new Date().toISOString().split('T')[0];
+        const advanceAvailable = Math.max(-currentCustomerBalance, 0);
+        const advanceApplied = Math.min(advanceAvailable, totalAmount);
+        const invoiceBalanceDue = totalAmount - advanceApplied;
+        const invoiceStatus = invoiceBalanceDue <= 0 ? 'paid' : advanceApplied > 0 ? 'partial' : 'unpaid';
         const invoice = await client.query(
             `INSERT INTO invoices
                 (invoice_id, invoice_no, date, customer_id, due_date,
                 total_amount, amount_paid, balance_due, status, factory_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *`,
-            [newId, invoiceNo, invoiceDate, customer_id, due_date || null, totalAmount, 0, totalAmount, 'unpaid', factory_id]
+            [newId, invoiceNo, invoiceDate, customer_id, due_date || null, totalAmount, advanceApplied, invoiceBalanceDue, invoiceStatus, factory_id]
         );
 
         // ── Insert items, deduct stock, log inventory OUT movements ──
@@ -165,7 +170,7 @@ const createInvoice = async (req, res) => {
         }
 
         await client.query(
-            `UPDATE customers SET balance_due = balance_due + $1 WHERE customer_id = $2 AND factory_id = $3`,
+            `UPDATE customers SET balance_due = COALESCE(balance_due, 0) + $1 WHERE customer_id = $2 AND factory_id = $3`,
             [totalAmount, customer_id, factory_id]
         );
 

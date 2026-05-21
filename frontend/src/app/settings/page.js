@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Building2, Save, Cloud, Folder, CheckCircle2, HardDrive, Loader2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../lib/config';
+import { getRuntimeApiBaseUrl } from '../../../lib/config';
 
 export default function SettingsPage() {
     const [factory, setFactory] = useState({ name: '', address: '' });
@@ -26,7 +26,7 @@ export default function SettingsPage() {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const res = await axios.get(`${API_BASE_URL}/factories/profile`, {
+                const res = await axios.get(`${getRuntimeApiBaseUrl()}/factories/profile`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.data) setFactory({ name: res.data.name || '', address: res.data.address || '' });
@@ -86,7 +86,7 @@ export default function SettingsPage() {
     const handleSave = async (e) => {
         e.preventDefault();
         try {
-            await axios.put(`${API_BASE_URL}/factories/profile`, factory, {
+            await axios.put(`${getRuntimeApiBaseUrl()}/factories/profile`, factory, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             toast.success('Factory profile updated successfully!');

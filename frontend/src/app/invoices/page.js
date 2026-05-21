@@ -8,12 +8,13 @@ import {
     createInvoice, getCustomers, getProducts
 } from '../../../lib/api';
 import {
-    FileText, Plus, Search, Eye, Check, Download
+    FileText, Plus, Search, Eye, Check, Download, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../../hooks/usePermissions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { savePdfDocument } from '../../../lib/mobile/files';
 
 // ── Status Badge ───────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -141,7 +142,7 @@ export default function InvoicesPage() {
     };
 
     // ── Download Invoice as PDF ─────────────────────────────────────
-    const downloadPDF = () => {
+    const downloadPDF = async () => {
         if (!detail) return;
 
         const { invoice, items: invoiceItems, payments } = detail;
@@ -226,7 +227,7 @@ export default function InvoicesPage() {
         doc.text('Powered by Your Company Name', 105, 285, { align: 'center' });
 
         // Save PDF
-        doc.save(`Invoice_${invoice.invoice_no}.pdf`);
+        const result = await savePdfDocument(doc, `Invoice_${invoice.invoice_no}.pdf`);
         toast.success('📄 Invoice downloaded as PDF');
     };
 
@@ -535,7 +536,7 @@ export default function InvoicesPage() {
                             <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
                     ) : detail ? (
-                        <div className="space-y-6">
+                        <div className="space-y-6 overflow-x-auto">
                             {/* Download Button */}
                             <div className="flex justify-end">
                                 <button
@@ -548,7 +549,7 @@ export default function InvoicesPage() {
                             </div>
 
                             {/* Invoice Header */}
-                            <div className="bg-gray-50 rounded-xl p-5 flex justify-between items-start">
+                            <div className="bg-gray-50 rounded-xl p-5 flex justify-between items-start min-w-[520px]">
                                 <div>
                                     <p className="text-2xl font-bold text-gray-800">{detail.invoice.invoice_no}</p>
                                     <p className="text-gray-600 mt-1">{detail.invoice.customer_name}</p>
@@ -562,8 +563,8 @@ export default function InvoicesPage() {
                             {/* Items Table */}
                             <div>
                                 <p className="text-sm font-semibold text-gray-700 mb-3">Items</p>
-                                <div className="border border-gray-100 rounded-xl overflow-hidden">
-                                    <table className="w-full">
+                                <div className="border border-gray-100 rounded-xl overflow-x-auto">
+                                    <table className="w-full min-w-[620px]">
                                         <thead>
                                             <tr className="bg-gray-50">
                                                 <th className="text-left text-xs text-gray-500 px-5 py-3">Product</th>
@@ -587,7 +588,7 @@ export default function InvoicesPage() {
                             </div>
 
                             {/* Summary */}
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-3 gap-4 min-w-[620px]">
                                 <div className="bg-blue-50 rounded-xl p-4 text-center">
                                     <p className="text-xs text-blue-600">Total</p>
                                     <p className="text-lg font-bold text-gray-800 mt-1">Rs {Number(detail.invoice.total_amount).toLocaleString()}</p>
@@ -606,7 +607,7 @@ export default function InvoicesPage() {
                             {detail.payments.length > 0 && (
                                 <div>
                                     <p className="text-sm font-semibold text-gray-700 mb-3">Payment History</p>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 min-w-[520px]">
                                         {detail.payments.map(pay => (
                                             <div key={pay.payment_id} className="flex justify-between items-center bg-gray-50 rounded-xl px-5 py-4">
                                                 <div>

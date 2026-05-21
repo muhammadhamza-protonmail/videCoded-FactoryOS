@@ -14,9 +14,17 @@
     "desktop:rebuild:native": "electron-rebuild -f -w sqlite3 --module-dir backend && electron-rebuild -f -w sqlite3",
     "desktop:backup": "electron electron/db-tools.js backup",
     "desktop:restore": "electron electron/db-tools.js restore",
-    "desktop:pack": "npm run desktop:build:web && npm run desktop:prepare:prod && npm run desktop:rebuild:native && electron-builder --win"
+    "desktop:pack": "npm run desktop:build:web && npm run desktop:prepare:prod && npm run desktop:rebuild:native && electron-builder --win",
+    "mobile:build:web": "cross-env CAPACITOR_BUILD=1 npm --prefix frontend run build",
+    "mobile:sync": "npm run mobile:build:web && npx cap sync",
+    "mobile:add:android": "npx cap add android",
+    "mobile:open:android": "npx cap open android",
+    "mobile:run:android": "npm run mobile:build:web && npx cap run android"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "@electron/rebuild": "^4.0.1",
     "cross-env": "^7.0.3",
     "electron": "^41.3.0",
@@ -113,6 +121,9 @@
     }
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "dotenv": "^17.4.2",
     "googleapis": "^171.4.0",
     "sqlite": "^5.1.1",

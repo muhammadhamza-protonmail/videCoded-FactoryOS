@@ -5,7 +5,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone'
+  output: process.env.CAPACITOR_BUILD === '1' ? 'export' : 'standalone',
+  images: {
+    unoptimized: process.env.CAPACITOR_BUILD === '1',
+  },
 };
 
 export default nextConfig;

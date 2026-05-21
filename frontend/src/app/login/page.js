@@ -1,16 +1,27 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { loginUser } from '../../../lib/api';
+import { getRuntimeApiBaseUrl, setRuntimeApiBaseUrl } from '../../../lib/config';
+import { isNativeMobileApp } from '../../../lib/mobile/database';
 import { useAuth } from '../../../context/AuthContext';
-import { Eye, EyeOff, Factory } from 'lucide-react';
+import { Eye, EyeOff, Factory, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
     const { login } = useAuth();
+    const router = useRouter();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [showServer, setShowServer] = useState(false);
+    const [serverUrl, setServerUrl] = useState(() => getRuntimeApiBaseUrl());
+    const [mobileMode, setMobileMode] = useState(false);
+
+    useEffect(() => {
+        setMobileMode(isNativeMobileApp());
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -22,15 +33,22 @@ export default function LoginPage() {
             toast.success(`✅ Welcome, ${res.data.user.full_name}!`);
             // Redirect based on role
             if (res.data.user.role === 'superadmin') {
-                window.location.href = '/superadmin';
+                router.replace('/superadmin');
             } else {
-                window.location.href = '/';
+                router.replace('/');
             }
         } catch (err) {
-            toast.error(err.response?.data?.error || 'Login failed');
+            console.error('Login failed', err);
+            toast.error(err.response?.data?.error || err.message || 'Login failed');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSaveServer = () => {
+        const saved = setRuntimeApiBaseUrl(serverUrl);
+        setServerUrl(saved);
+        toast.success('Server URL saved');
     };
 
     return (
@@ -101,6 +119,43 @@ export default function LoginPage() {
                             ) : 'Sign In'}
                         </button>
                     </form>
+
+                    <div className="mt-4 border border-gray-100 rounded-2xl overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowServer(!showServer)}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-gray-600 hover:bg-gray-50"
+                        >
+                            <span className="flex items-center gap-2">
+                                <Server size={16} />
+                                {mobileMode ? 'Mobile server connection' : 'Server connection'}
+                            </span>
+                            <span className="text-xs text-gray-400">{showServer ? 'Hide' : 'Edit'}</span>
+                        </button>
+                        {showServer && (
+                            <div className="p-4 pt-0 space-y-3">
+                                {mobileMode && (
+                                    <p className="rounded-xl bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                                        Android now uses the same backend API as desktop. Use your computer/server LAN IP, not 127.0.0.1, when testing on a phone.
+                                    </p>
+                                )}
+                                <input
+                                    type="text"
+                                    value={serverUrl}
+                                    onChange={e => setServerUrl(e.target.value)}
+                                    placeholder="http://10.104.102.162:5000/api"
+                                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleSaveServer}
+                                    className="w-full bg-gray-900 hover:bg-gray-800 text-white py-2.5 rounded-xl text-sm font-semibold transition-all"
+                                >
+                                    Save Server URL
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Credentials hint */}
                     <div className="mt-6 bg-gray-50 rounded-2xl p-4 space-y-2">

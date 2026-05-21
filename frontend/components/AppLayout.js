@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import Layout from './Layout';
+import toast from 'react-hot-toast';
 
 const PUBLIC_PAGES = ['/login', '/signup'];
 
@@ -42,6 +43,24 @@ export default function AppLayout({ children }) {
         }
 
     }, [user, loading, pathname]);
+
+    useEffect(() => {
+        const handleLocalChange = () => {
+            toast('Saved offline. It will sync when cloud sync is connected.', { icon: '📱' });
+        };
+        const handleRemoteChange = () => {
+            toast.success('New cloud data received. Refreshing view...');
+            router.refresh();
+        };
+
+        window.addEventListener('factoryos-local-data-changed', handleLocalChange);
+        window.addEventListener('factoryos-remote-data-updated', handleRemoteChange);
+
+        return () => {
+            window.removeEventListener('factoryos-local-data-changed', handleLocalChange);
+            window.removeEventListener('factoryos-remote-data-updated', handleRemoteChange);
+        };
+    }, [router]);
 
     // Loading screen
     if (loading) return (
